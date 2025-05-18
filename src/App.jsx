@@ -9,7 +9,7 @@ export default function App() {
   const MAX_TABS = 25;
 
   const [tabs, setTabs] = useState([
-    { id: 1, url: 'welcome', title: 'Добро пожаловать' },
+    { id: 1, url: '', title: 'Добро пожаловать' },
   ]);
   const [activeTab, setActiveTab] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
@@ -46,11 +46,11 @@ export default function App() {
     webview.addEventListener('did-navigate-in-page', handleNavigation);
     webview.addEventListener('page-title-updated', handleTitleUpdated);
     webview.addEventListener('did-start-loading', handleDidStartLoading);
-    webview.addEventListener('did-stop-loading', () => {
-      const url = webview.getURL();
-      const title = webview.getTitle();
-      window.api.send('history-add', { url, title, timestamp: Date.now() });
-    });
+    // webview.addEventListener('did-stop-loading', () => {
+    //   const url = webview.getURL();
+    //   const title = webview.getTitle();
+    //   window.api.send('history-add', { url, title, timestamp: Date.now() });
+    // });
 
     return () => {
       webview.removeEventListener('did-navigate', handleNavigation);
@@ -86,17 +86,11 @@ export default function App() {
 
   const closeTab = (idToClose) => {
     setTabs((prevTabs) => {
-      const filtered = prevTabs.filter((tab) => tab.id !== idToClose);
-
-      if (filtered.length === 0) {
-        const welcomeTab = {
-          id: Date.now(),
-          url: 'welcome',
-          title: 'Добро пожаловать',
-        };
-        setActiveTab(welcomeTab.id);
-        return [welcomeTab];
+      if (prevTabs.length === 1) {
+        return prevTabs;
       }
+
+      const filtered = prevTabs.filter((tab) => tab.id !== idToClose);
 
       if (activeTab === idToClose) {
         const idx = prevTabs.findIndex((tab) => tab.id === idToClose);

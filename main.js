@@ -3,6 +3,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { existsSync, writeFileSync, readFileSync } from 'fs';
 import { ipcMain } from 'electron';
+import { autoUpdater } from 'electron-updater';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -76,7 +77,7 @@ if (existsSync(historyFilePath)) {
 
 ipcMain.on('window-minimize', () => win.minimize());
 
-ipcMain.handle('toggleMaximize', () => {
+ipcMain.handle('window-toggleMaximize', () => {
   if (win.isMaximized()) {
     win.unmaximize();
     return false;
@@ -107,7 +108,22 @@ ipcMain.on(
 );
 ipcMain.on('reload', () => win.webContents.reload());
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  autoUpdater.checkForUpdatesAndNotify();
+  createWindow();
+});
+
+autoUpdater.on('checking-for-update', () =>
+  console.log('Проверка обновлений…'),
+);
+autoUpdater.on('update-available', (info) =>
+  console.log('Есть обновление', info),
+);
+autoUpdater.on('update-downloaded', () => {
+  console.log('Обновление скачано, скоро перезапуск…');
+  autoUpdater.quitAndInstall();
+});
+autoUpdater.on('error', (err) => console.error('Ошибка обновления', err));
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();

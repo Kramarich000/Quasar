@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { IoClose, IoMoon, IoSunny } from 'react-icons/io5';
 import { IoAdd } from 'react-icons/io5';
 import TitleBar from './TitleBar';
+import { AnimatePresence, motion } from 'framer-motion';
 export default function TabBar({
   tabs,
   activeTab,
@@ -34,12 +35,24 @@ export default function TabBar({
         style={{ WebkitAppRegion: 'drag' }}
       >
         {tabs.map((tab) => (
-          <div
+          <motion.div
+            initial={{ opacity: 0, maxWidth: 0 }}
+            animate={{ opacity: 1, maxWidth: 300 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.25, ease: 'linear' }}
             style={{ WebkitAppRegion: 'no-drag' }}
             key={tab.id}
-            onClick={() => onSelectTab(tab.id)}
-            className={`relative !transition-all 
-            flex-shrink flex-grow basis-0 p-2 flex max-w-[300px] items-center px-2 mx-0.5 rounded-t-md
+            onMouseDown={(event) => {
+              console.log('button', event.button);
+              if (event.button === 1) {
+                event.preventDefault();
+                onCloseTab(tab.id);
+              } else if (event.button === 0) {
+                onSelectTab(tab.id);
+              }
+            }}
+            className={`relative 
+            flex-shrink flex-grow !transition-colors basis-0 p-2 flex max-w-[300px] items-center px-2 mx-0.5 rounded-t-md
             overflow-hidden whitespace-nowrap
             ${
               tab.id === activeTab
@@ -69,7 +82,7 @@ export default function TabBar({
             >
               <IoClose />
             </button>
-          </div>
+          </motion.div>
         ))}
         <button
           style={{ WebkitAppRegion: 'no-drag' }}
