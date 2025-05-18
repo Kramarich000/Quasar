@@ -1,8 +1,12 @@
-export default function Tab({ url, visible }) {
+export default function Tab({ url, visible, webviewRef }) {
   return (
     <webview
+      ref={webviewRef}
       src={url}
-      className={`${visible ? 'block' : 'hidden'} absolute inset-0 top-[0rem]`}
+      className={`${visible ? 'block' : 'hidden'} w-full h-full`}
+      style={{ display: visible ? 'flex' : 'none' }}
+      allowpopups="true"
+      webpreferences="nativeWindowOpen=yes, contextIsolation=yes"
     />
   );
 }

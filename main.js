@@ -1,9 +1,7 @@
-import { app, BrowserWindow } from 'electron';
-import { join } from 'path';
+import { app, BrowserWindow, Menu } from 'electron';
+import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { dirname } from 'path';
 
-// Получаем __dirname для ES Modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
@@ -11,19 +9,23 @@ let win;
 
 function createWindow() {
   win = new BrowserWindow({
-    fullscreen: true,
     frame: true,
     webPreferences: {
-      nodeIntegration: true,
-      webviewTag: true,
       preload: join(__dirname, 'preload.js'),
-      contextIsolation: false,
+      contextIsolation: true,
+      nodeIntegration: false,
+      webviewTag: true,
     },
   });
-  win.setFullScreen(!win.isFullScreen());
 
   win.loadURL('http://localhost:5173');
+
+  Menu.setApplicationMenu(null);
 }
+
+try {
+  require('electron-reloader')(module);
+} catch (_) {}
 
 app.whenReady().then(createWindow);
 

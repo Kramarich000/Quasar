@@ -1,40 +1,66 @@
-// App.jsx
-import { useState } from 'react';
-import Tab from './components/Tab';
+import { useState, useRef, useEffect } from 'react';
 import TabBar from './components/TabBar';
 import './App.css';
+import ToolBar from './components/ToolBar';
+import Tab from './components/Tab';
 
 export default function App() {
+  const webviewRef = useRef(null);
+
   const [tabs, setTabs] = useState([{ id: 1, url: 'https://google.com' }]);
   const [activeTab, setActiveTab] = useState(1);
 
   const addTab = () => {
     const id = Date.now();
-    setTabs([...tabs, { id, url: 'https://google.com' }]);
+    setTabs((t) => [...t, { id, url: 'https://google.com' }]);
     setActiveTab(id);
   };
 
   const closeTab = (idToClose) => {
-    const newTabs = tabs.filter((t) => t.id !== idToClose);
-    setTabs(newTabs);
-    if (activeTab === idToClose && newTabs.length > 0) {
-      setActiveTab(newTabs[newTabs.length - 1].id);
-    }
+    setTabs((prevTabs) => {
+      const filtered = prevTabs.filter((tab) => tab.id !== idToClose);
+
+      if (filtered.length === 0) {
+        const newTab = { id: Date.now(), url: 'https://google.com' };
+        setActiveTab(newTab.id);
+        return [newTab];
+      }
+
+      if (activeTab === idToClose) {
+        const idx = prevTabs.findIndex((tab) => tab.id === idToClose);
+        const nextTab = prevTabs[idx - 1] || prevTabs[idx + 1] || filtered[0];
+        setActiveTab(nextTab.id);
+      }
+
+      return filtered;
+    });
   };
 
+  useEffect(() => {
+    const current = tabs.find((tab) => tab.id === activeTab);
+    if (current && webviewRef.current) {
+      webviewRef.current.src = current.url;
+    }
+  }, [activeTab, tabs]);
+
   return (
-    <div className="w-full h-full flex flex-col">
+    <div className="flex flex-col h-full">
       <TabBar
-        className="w-full sticky top-0 z-10"
         tabs={tabs}
         activeTab={activeTab}
         onAddTab={addTab}
         onCloseTab={closeTab}
         onSelectTab={setActiveTab}
       />
+      <ToolBar webviewRef={webviewRef} />
       <div className="flex-1 relative">
         {tabs.map((tab) => (
-          <Tab key={tab.id} url={tab.url} visible={tab.id === activeTab} />
+          <Tab
+            key={tab.id}
+            url={tab.url}
+            visible={tab.id === activeTab}
+            webviewRef={tab.id === activeTab ? webviewRef : null}
+          />
         ))}
       </div>
     </div>
