@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Tab({ url, webviewRef }) {
@@ -50,14 +50,24 @@ export default function Tab({ url, webviewRef }) {
       clearTimeout(stopTimeout.current);
     };
   }, [webviewRef, url]);
+  const isIncognito = window.api.isIncognito;
 
   if (url === '') {
-    return (
-      <div className="p-6 flex flex-col items-center justify-center mx-auto text-center text-2xl text-cyan-700">
-        <h1>Добро пожаловать в браузер Quasar!</h1>
-        <p>Откройте новую вкладку и начните серфить.</p>
-      </div>
-    );
+    if (!isIncognito) {
+      return (
+        <div className="p-6 flex flex-col items-center justify-center mx-auto text-center text-2xl text-cyan-700">
+          <h1>Добро пожаловать в браузер Quasar!</h1>
+          <p>Откройте новую вкладку и начните серфить.</p>
+        </div>
+      );
+    } else {
+      return (
+        <div className="p-6 flex flex-col items-center justify-center mx-auto text-center text-2xl text-cyan-700">
+          <h1>Вы в инкогнито. Че опять будешь порнушку смотреть?</h1>
+          <p>Откройте новую вкладку и начните серфить.</p>
+        </div>
+      );
+    }
   }
 
   return (

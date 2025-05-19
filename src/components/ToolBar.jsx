@@ -30,11 +30,13 @@ export default function ToolBar({ webviewRef, url, onChangeUrl }) {
           webviewRef.current.canGoBack() &&
           webviewRef.current.goBack()
         }
+        title="Назад"
         className="p-2 rounded !bg-transparent !transition-all hover:!bg-gray-700 !outline-none !border-none"
       >
         <FaArrowLeft />
       </button>
       <button
+        title="Вперед"
         onClick={() =>
           webviewRef.current?.canGoForward &&
           webviewRef.current.canGoForward() &&
@@ -45,6 +47,7 @@ export default function ToolBar({ webviewRef, url, onChangeUrl }) {
         <FaArrowRight />
       </button>
       <button
+        title="Обновить"
         onClick={() =>
           webviewRef.current?.reload && webviewRef.current.reload()
         }
@@ -66,6 +69,7 @@ export default function ToolBar({ webviewRef, url, onChangeUrl }) {
         className="flex-1 bg-gray-700 placeholder-gray-400 px-3 py-1 rounded focus:outline-none"
       />
       <button
+        title="Свернуть"
         onClick={navigate}
         className="p-2 rounded !bg-transparent !transition-all hover:!bg-gray-700 !outline-none !border-none"
       >

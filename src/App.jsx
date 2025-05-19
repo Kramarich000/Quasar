@@ -11,9 +11,35 @@ export default function App() {
   const [tabs, setTabs] = useState([
     { id: 1, url: '', title: 'Добро пожаловать' },
   ]);
+  const [isSecure, setIsSecure] = useState(false);
   const [activeTab, setActiveTab] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
+  useEffect(() => {
+    window.api.on('security-status', (secure) => {
+      setIsSecure(secure);
+    });
 
+    const currentUrl = tabs.find((tab) => tab.id === activeTab)?.url;
+    if (currentUrl) {
+      setIsSecure(currentUrl.startsWith('https://'));
+    }
+  }, [activeTab, tabs]);
+  useEffect(() => {
+    window.api.on('init-tab-url', (url) => {
+      if (url) {
+        const id = Date.now();
+        setTabs([{ id, url, title: url }]);
+        setActiveTab(id);
+
+        // changeUrl(activeTab, url);
+        // navigate(url);
+      }
+    });
+
+    return () => {
+      window.api.removeAllListeners('init-tab-url'); // очистка слушателя
+    };
+  }, []);
   useEffect(() => {
     const webview = webviewRef.current;
     if (!webview) return;
@@ -124,8 +150,10 @@ export default function App() {
         activeTab={activeTab}
         onAddTab={addTab}
         onCloseTab={closeTab}
+        isSecure={isSecure}
         onSelectTab={setActiveTab}
       />
+
       <ToolBar
         webviewRef={webviewRef}
         url={tabs.find((tab) => tab.id === activeTab)?.url}
