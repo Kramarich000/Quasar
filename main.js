@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, screen, ipcMain } from 'electron';
+import { app, BrowserWindow, Menu, screen, ipcMain, session } from 'electron';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { existsSync, writeFileSync, readFileSync } from 'fs';
@@ -210,10 +210,6 @@ ipcMain.on('reload', (event) => {
     senderWin.webContents.reload();
   }
 });
-app.whenReady().then(() => {
-  autoUpdater.checkForUpdatesAndNotify();
-  createWindow();
-});
 
 ipcMain.on('window-createIncognitoWindow', () => {
   console.log('Создание инкогнито-окна...');
@@ -267,6 +263,24 @@ autoUpdater.on('update-downloaded', () => {
 });
 autoUpdater.on('error', (err) => console.error('Ошибка обновления', err));
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
-});
+const gotLock = app.requestSingleInstanceLock();
+
+if (!gotLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (win) {
+      if (win.isMinimized()) win.restore();
+      win.focus();
+    }
+  });
+
+  app.whenReady().then(() => {
+    autoUpdater.checkForUpdatesAndNotify();
+    createWindow();
+  });
+
+  app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') app.quit();
+  });
+}
