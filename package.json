@@ -1,7 +1,7 @@
 {
   "name": "quasar",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "main": "main.js",
   "description": "Quasar Browser",
   "author": "Kramarich",
@@ -52,8 +52,7 @@
     ],
     "directories": {
       "buildResources": "dist"
-    },
-    "differentialPackage": true
+    }
   },
   "devDependencies": {
     "@electron/fuses": "^1.8.0",

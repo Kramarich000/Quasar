@@ -1,9 +1,10 @@
-import { app, BrowserWindow, Menu, screen } from 'electron';
+import { app, BrowserWindow, Menu, screen, ipcMain } from 'electron';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { existsSync, writeFileSync, readFileSync } from 'fs';
-import { ipcMain } from 'electron';
-import { autoUpdater } from 'electron-updater';
+import pkg from 'electron-updater';
+
+const { autoUpdater } = pkg;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);

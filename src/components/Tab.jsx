@@ -1,4 +1,3 @@
-// components/Tab.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -13,7 +12,6 @@ export default function Tab({ url, webviewRef }) {
     const webview = webviewRef.current;
     if (!webview) return;
 
-    // Плавный рост прогресса до 90%
     const updateProgress = () => {
       if (progressRef.current < 90) {
         progressRef.current += 0.5;
@@ -39,7 +37,7 @@ export default function Tab({ url, webviewRef }) {
       stopTimeout.current = setTimeout(() => {
         setLoading(false);
         setProgress(0);
-      }, 500); // задержка перед скрытием
+      }, 500);
     };
 
     webview.addEventListener('did-start-loading', startLoading);
