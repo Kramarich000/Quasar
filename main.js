@@ -6,6 +6,7 @@ import {
   ipcMain,
   session,
   shell,
+  webContents
 } from 'electron';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -36,6 +37,8 @@ function createWindow() {
     // height,
     width: 1200,
     height: 900,
+    minWidth: 800,
+    minHeight: 600,
     transparent: false,
     webPreferences: {
       partition: 'persist:browser',
@@ -44,9 +47,9 @@ function createWindow() {
       nodeIntegration: false,
       webviewTag: true,
       sandbox: true,
-      experimentalFeatures: true,
+      // experimentalFeatures: true,
       offscreen: false,
-      plugins: true,
+      //plugins: true,
       scrollBounce: true,
       enableWebGL: true,
       enableAccelerated2dCanvas: true,
@@ -56,7 +59,7 @@ function createWindow() {
   win.on('closed', () => {
     win = null;
   });
-  win.webContents.openDevTools();
+  // win.webContents.openDevTools();
   win.webContents.on('did-navigate', (event, url) => {
     const isSecure = url.startsWith('https://');
     win.webContents.send('security-status', isSecure);
@@ -93,7 +96,9 @@ if (isDev) {
 function createNewWindowWithUrl(url) {
   const newWindow = new BrowserWindow({
     width: 1200,
-    height: 800,
+    height: 900,
+    minWidth: 800,
+    minHeight: 600,
     frame: false,
     titleBarStyle: 'hidden',
     webPreferences: {
@@ -103,9 +108,9 @@ function createNewWindowWithUrl(url) {
       nodeIntegration: false,
       webviewTag: true,
       sandbox: true,
-      experimentalFeatures: true,
+      // experimentalFeatures: true,
       offscreen: false,
-      plugins: true,
+      //plugins: true,
       scrollBounce: true,
       enableWebGL: true,
       enableAccelerated2dCanvas: true,
@@ -132,29 +137,30 @@ function createNewWindowWithUrl(url) {
 }
 
 function createNewIncognitoWindowWithUrl(url) {
-  const partitionName = `persist:incognito-${Date.now()}`;
   const incognitoWindow = new BrowserWindow({
     width: 1200,
-    height: 800,
+    height: 900,
+    minWidth: 800,
+    minHeight: 600,
     frame: false,
     titleBarStyle: 'hidden',
     webPreferences: {
-      partition: partitionName,
+      partition: `in-memory-incognito-${Date.now()}`,
       preload: join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
       webviewTag: true,
       sandbox: true,
-      experimentalFeatures: true,
+      // experimentalFeatures: true,
       offscreen: false,
-      plugins: true,
+      //plugins: true,
       scrollBounce: true,
       enableWebGL: true,
       enableAccelerated2dCanvas: true,
     },
   });
 
-  // incognitoWindow.webContents.openDevTools();
+  incognitoWindow.webContents.openDevTools();
 
   incognitoWindows.add(incognitoWindow);
 
@@ -248,6 +254,34 @@ ipcMain.handle('open-external-url', async (event, url) => {
   }
 });
 
+ipcMain.on('freeze-tab', (event, wcId) => {
+  const wc = webContents.fromId(wcId);
+  if (!wc || wc.isDestroyed()) return;
+
+  wc.setBackgroundThrottling(true);
+
+  try {
+    wc.debugger.attach();
+    wc.debugger.sendCommand('Page.setWebLifecycleState', { state: 'frozen' });
+  } catch (e) {
+    console.error('Freeze failed:', e);
+  }
+});
+
+ipcMain.on('unfreeze-tab', (event, wcId) => {
+  const wc = webContents.fromId(wcId);
+  if (!wc || wc.isDestroyed()) return;
+
+  wc.setBackgroundThrottling(false);
+
+  try {
+    wc.debugger.sendCommand('Page.setWebLifecycleState', { state: 'active' });
+    wc.debugger.detach();
+  } catch (e) {
+    console.error('Unfreeze failed:', e);
+  }
+});
+
 ipcMain.on('window-createIncognitoWindow', () => {
   console.log('Создание инкогнито-окна...');
 
@@ -255,7 +289,9 @@ ipcMain.on('window-createIncognitoWindow', () => {
     frame: false,
     titleBarStyle: 'hidden',
     width: 1200,
-    height: 800,
+    height: 900,
+    minWidth: 800,
+    minHeight: 600,
     webPreferences: {
       incognito: true,
       partition: `in-memory-incognito-${Date.now()}`,
@@ -264,8 +300,8 @@ ipcMain.on('window-createIncognitoWindow', () => {
       nodeIntegration: false,
       webviewTag: true,
       sandbox: true,
-      experimentalFeatures: true,
-      plugins: true,
+      // experimentalFeatures: true,
+      //plugins: true,
       scrollBounce: true,
       enableWebGL: true,
       additionalArguments: ['--incognito'],

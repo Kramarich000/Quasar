@@ -49,7 +49,6 @@ export default function App() {
       window.api.removeAllListeners('init-tab-url');
     };
   }, []);
-
   useEffect(() => {
     const activeTabData = tabs.find((tab) => tab.id === activeTab);
     if (!activeTabData) return;
@@ -181,7 +180,7 @@ export default function App() {
   // }, [activeTab, tabs, isLoading]);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full fixed w-full">
       <TabBar
         tabs={tabs}
         activeTab={activeTab}
@@ -194,6 +193,7 @@ export default function App() {
 
       <ToolBar
         // key={activeTab.id}
+        key={activeTab}
         webviewRef={tabs.find((tab) => tab.id === activeTab)?.webviewRef}
         url={tabs.find((tab) => tab.id === activeTab)?.url}
         onChangeUrl={(newUrl) => changeUrl(activeTab, newUrl)}

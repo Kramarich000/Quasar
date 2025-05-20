@@ -5,7 +5,7 @@ import { IoWarning } from 'react-icons/io5';
 import { IoAdd } from 'react-icons/io5';
 import TitleBar from './TitleBar';
 import { BsIncognito } from 'react-icons/bs';
-import { AnimatePresence, motion, useMotionValue } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import defaultFavicon from '../assets/default-favicon.svg';
 import { useTabLoadingState } from '../hooks/useTabLoadingState';
 import { TabContainer } from './TabContainer';
@@ -19,15 +19,6 @@ export default function TabBar({
   onCloseTab,
   onSelectTab,
 }) {
-  function isValidUrl(string) {
-    try {
-      const url = new URL(string);
-      return url.protocol === 'http:' || url.protocol === 'https:';
-    } catch {
-      return false;
-    }
-  }
-  const y = useMotionValue(0);
   const [theme, setTheme] = useState(() => {
     return window.api.isIncognito ? 'dark' : 'light';
   });
@@ -39,16 +30,16 @@ export default function TabBar({
     root.classList.add(theme);
   }, [theme]);
   const loadingTabs = useTabLoadingState(tabs, activeTab);
-  const isLoading = loadingTabs[activeTab];
 
   return (
     <>
       <div
-        className="flex items-center h-10 bg-gray-800 shadow overflow-x-auto overflow-y-hidden no-scrollbar"
+        className="tabBar-scrollbar flex items-center h-10 bg-gray-800 shadow overflow-x-auto overflow-y-hidden no-scrollbar"
         style={{ WebkitAppRegion: 'drag' }}
       >
         <div className="!m-[5px]">
           <svg
+            className="pointer-events-none"
             width="30"
             height="30"
             viewBox="0 0 100 100"
@@ -83,18 +74,20 @@ export default function TabBar({
             </defs>
           </svg>
         </div>
-        {tabs.map((tab) => (
-          <TabContainer
-            key={tab.id}
-            tab={tab}
-            activeTab={activeTab}
-            loadingTabs={loadingTabs}
-            favicons={favicons}
-            defaultFavicon={defaultFavicon}
-            onSelectTab={onSelectTab}
-            onCloseTab={onCloseTab}
-          />
-        ))}
+        <AnimatePresence initial={false}>
+          {tabs.map((tab) => (
+            <TabContainer
+              key={tab.id}
+              tab={tab}
+              activeTab={activeTab}
+              loadingTabs={loadingTabs}
+              favicons={favicons}
+              defaultFavicon={defaultFavicon}
+              onSelectTab={onSelectTab}
+              onCloseTab={onCloseTab}
+            />
+          ))}
+        </AnimatePresence>
         <button
           style={{ WebkitAppRegion: 'no-drag' }}
           onClick={() => onAddTab(false)}

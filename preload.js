@@ -1,20 +1,68 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 const allowedChannels = {
-  minimize: { type: 'send' },
-  maximize: { type: 'send' },
-  close: { type: 'send' },
-  goBack: { type: 'send' },
-  goForward: { type: 'send' },
-  reload: { type: 'send' },
-  toggleMaximize: { type: 'invoke' },
-  detachTab: { type: 'invoke' },
-  'history-add': { type: 'send' },
-  'get-history': { type: 'invoke' },
-  createIncognitoWindow: { type: 'send' },
-  on: { type: 'on' },
-  isIncognito: { type: 'invoke' },
-  'open-external-url': { type: 'send' },
+  minimize: {
+    type: 'send',
+    validate: (arg) => arg === undefined || arg === null, // без аргументов
+  },
+  maximize: {
+    type: 'send',
+    validate: (arg) => arg === undefined || arg === null,
+  },
+  close: {
+    type: 'send',
+    validate: (arg) => arg === undefined || arg === null,
+  },
+  goBack: {
+    type: 'send',
+    validate: (arg) => arg === undefined || arg === null,
+  },
+  goForward: {
+    type: 'send',
+    validate: (arg) => arg === undefined || arg === null,
+  },
+  reload: {
+    type: 'send',
+    validate: (arg) => arg === undefined || arg === null,
+  },
+  toggleMaximize: {
+    type: 'invoke',
+    validate: (arg) => arg === undefined || arg === null,
+  },
+  detachTab: {
+    type: 'invoke',
+    validate: (arg) =>
+      typeof arg === 'number' && Number.isInteger(arg) && arg >= 0,
+  },
+  'history-add': {
+    type: 'send',
+    validate: (arg) =>
+      typeof arg === 'object' &&
+      arg !== null &&
+      typeof arg.url === 'string' &&
+      typeof arg.title === 'string',
+  },
+  'get-history': {
+    type: 'invoke',
+    validate: (arg) => arg === undefined || arg === null,
+  },
+  createIncognitoWindow: {
+    type: 'send',
+    validate: (arg) =>
+      typeof arg === 'object' && arg !== null && typeof arg.url === 'string', //
+  },
+  on: {
+    type: 'on',
+    validate: (arg) => typeof arg === 'string',
+  },
+  isIncognito: {
+    type: 'invoke',
+    validate: (arg) => arg === undefined || arg === null,
+  },
+  'open-external-url': {
+    type: 'send',
+    validate: (arg) => typeof arg === 'string' && arg.startsWith('http'),
+  },
 };
 
 const safeApi = {};
@@ -85,5 +133,9 @@ safeApi.navigatorSpoof = {
     }
   },
 };
+
+safeApi.freezeTab = (webContentsId) => ipcRenderer.send('freeze-tab', webContentsId);
+safeApi.unfreezeTab = (webContentsId) => ipcRenderer.send('unfreeze-tab', webContentsId);
+
 
 contextBridge.exposeInMainWorld('api', safeApi);
