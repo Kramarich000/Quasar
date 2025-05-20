@@ -12,11 +12,12 @@
     "build-e": "electron-builder",
     "lint": "eslint .",
     "preview": "vite preview",
-    "electron": "electron ./main.js",
+    "electron": "npm run build && electron ./main.js",
     "release": "npm run build && electron-builder --publish always"
   },
   "dependencies": {
     "@tippyjs/react": "^4.2.6",
+    "electron-context-menu": "^4.0.5",
     "electron-squirrel-startup": "^1.0.1",
     "electron-updater": "^6.6.2",
     "framer-motion": "^12.12.1",
@@ -72,7 +73,6 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.19",
     "globals": "^16.0.0",
-    "tailwind": "^4.0.0",
     "tailwindcss": "^4.1.6",
     "vite": "^6.3.5",
     "wait-on": "^8.0.3"

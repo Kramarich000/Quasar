@@ -1,10 +1,19 @@
-import { app, BrowserWindow, Menu, screen, ipcMain, session } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  Menu,
+  screen,
+  ipcMain,
+  session,
+  shell,
+} from 'electron';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { existsSync, writeFileSync, readFileSync } from 'fs';
 import pkg from 'electron-updater';
 import path from 'path';
 const { autoUpdater } = pkg;
+import contextMenu from 'electron-context-menu';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -29,17 +38,25 @@ function createWindow() {
     height: 900,
     transparent: false,
     webPreferences: {
+      partition: 'persist:browser',
       preload: join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
       webviewTag: true,
+      sandbox: true,
+      experimentalFeatures: true,
+      offscreen: false,
+      plugins: true,
+      scrollBounce: true,
+      enableWebGL: true,
+      enableAccelerated2dCanvas: true,
     },
   });
+
   win.on('closed', () => {
     win = null;
   });
   win.webContents.openDevTools();
-
   win.webContents.on('did-navigate', (event, url) => {
     const isSecure = url.startsWith('https://');
     win.webContents.send('security-status', isSecure);
@@ -80,10 +97,18 @@ function createNewWindowWithUrl(url) {
     frame: false,
     titleBarStyle: 'hidden',
     webPreferences: {
+      partition: 'persist:browser',
       preload: join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
       webviewTag: true,
+      sandbox: true,
+      experimentalFeatures: true,
+      offscreen: false,
+      plugins: true,
+      scrollBounce: true,
+      enableWebGL: true,
+      enableAccelerated2dCanvas: true,
     },
   });
   if (isDev) {
@@ -97,7 +122,7 @@ function createNewWindowWithUrl(url) {
   });
 
   detachedWindows.add(newWindow);
-  newWindow.webContents.openDevTools();
+  // newWindow.webContents.openDevTools();
 
   newWindow.on('closed', () => {
     detachedWindows.delete(newWindow);
@@ -119,11 +144,17 @@ function createNewIncognitoWindowWithUrl(url) {
       contextIsolation: true,
       nodeIntegration: false,
       webviewTag: true,
-      additionalArguments: ['--incognito'],
+      sandbox: true,
+      experimentalFeatures: true,
+      offscreen: false,
+      plugins: true,
+      scrollBounce: true,
+      enableWebGL: true,
+      enableAccelerated2dCanvas: true,
     },
   });
 
-  incognitoWindow.webContents.openDevTools();
+  // incognitoWindow.webContents.openDevTools();
 
   incognitoWindows.add(incognitoWindow);
 
@@ -211,6 +242,12 @@ ipcMain.on('reload', (event) => {
   }
 });
 
+ipcMain.handle('open-external-url', async (event, url) => {
+  if (url && typeof url === 'string' && url.startsWith('http')) {
+    await shell.openExternal(url);
+  }
+});
+
 ipcMain.on('window-createIncognitoWindow', () => {
   console.log('Создание инкогнито-окна...');
 
@@ -220,16 +257,23 @@ ipcMain.on('window-createIncognitoWindow', () => {
     width: 1200,
     height: 800,
     webPreferences: {
-      partition: `persist:incognito-${Date.now()}`,
+      incognito: true,
+      partition: `in-memory-incognito-${Date.now()}`,
       preload: join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
       webviewTag: true,
+      sandbox: true,
+      experimentalFeatures: true,
+      plugins: true,
+      scrollBounce: true,
+      enableWebGL: true,
       additionalArguments: ['--incognito'],
+      enableAccelerated2dCanvas: true,
     },
   });
 
-  incognitoWindow.webContents.openDevTools();
+  // incognitoWindow.webContents.openDevTools();
 
   incognitoWindows.add(incognitoWindow);
 
@@ -278,6 +322,10 @@ if (!gotLock) {
   app.whenReady().then(() => {
     autoUpdater.checkForUpdatesAndNotify();
     createWindow();
+
+    contextMenu({
+      showInspectElement: isDev,
+    });
   });
 
   app.on('window-all-closed', () => {

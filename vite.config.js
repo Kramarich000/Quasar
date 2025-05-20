@@ -6,7 +6,7 @@ export default defineConfig(({ mode }) => ({
   base: mode === 'production' ? './' : '/',
   plugins: [react(), tailwindcss()],
   build: {
-    sourcemap: false,
+    sourcemap: mode === 'development' ? 'inline' : false,
     outDir: 'dist',
     minify: 'esbuild',
     target: 'es2015',

@@ -20,7 +20,7 @@ export default function TitleBar() {
         ─
       </button>
       <button
-        title={isMaximized ? 'Полноэкранный режим' : 'Окно'}
+        title={isMaximized ? 'Оконный режим' : 'Полноэкранный режим'}
         onClick={handleMaximize}
         className="px-2 py-1 text-gray-400 !outline-none hover:!text-gray-100 hover:!bg-gray-500 !rounded-none !transition-all !border-none !bg-transparent"
       >

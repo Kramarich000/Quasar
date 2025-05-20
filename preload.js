@@ -14,6 +14,7 @@ const allowedChannels = {
   createIncognitoWindow: { type: 'send' },
   on: { type: 'on' },
   isIncognito: { type: 'invoke' },
+  'open-external-url': { type: 'send' },
 };
 
 const safeApi = {};
@@ -26,12 +27,63 @@ for (const [channel, config] of Object.entries(allowedChannels)) {
   }
 }
 safeApi.on = (channel, callback) => {
-  const allowedListenChannels = ['init-tab-url', 'security-status']; // сюда добавляй свои каналы
+  const allowedListenChannels = ['init-tab-url', 'security-status'];
   if (allowedListenChannels.includes(channel)) {
     ipcRenderer.on(channel, (event, ...args) => callback(...args));
   }
 };
 
 safeApi.isIncognito = process.argv.includes('--incognito');
+
+safeApi.navigatorSpoof = {
+  override: () => {
+    try {
+      delete navigator.__proto__.userAgent;
+      delete navigator.__proto__.vendor;
+      delete navigator.__proto__.platform;
+
+      Object.defineProperty(navigator, 'userAgent', {
+        value:
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        configurable: false,
+        writable: false,
+      });
+
+      Object.defineProperty(navigator, 'vendor', {
+        value: 'Google Inc.',
+        configurable: false,
+        writable: false,
+      });
+
+      Object.defineProperty(window, 'chrome', {
+        value: {
+          runtime: {},
+          app: {
+            isInstalled: true,
+          },
+          csi: () => ({ onloadT: Date.now() }),
+        },
+        configurable: false,
+        writable: false,
+        enumerable: false,
+      });
+
+      Object.defineProperty(navigator, 'platform', {
+        value: 'Win64',
+        configurable: false,
+        writable: false,
+      });
+
+      Object.defineProperty(navigator, 'appVersion', {
+        value:
+          '5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        configurable: false,
+        writable: false,
+      });
+    } catch (e) {
+      console.error('Ошибка при подмене navigator:', e);
+    }
+  },
+};
 
 contextBridge.exposeInMainWorld('api', safeApi);
