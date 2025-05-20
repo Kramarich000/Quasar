@@ -6,7 +6,7 @@ import {
   ipcMain,
   session,
   shell,
-  webContents
+  webContents,
 } from 'electron';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -59,7 +59,64 @@ function createWindow() {
   win.on('closed', () => {
     win = null;
   });
+
+  win.webContents.setVisualZoomLevelLimits(0.25, 5);
+  win.webContents.setZoomLevel(0);
+
+  win.webContents.on('before-input-event', (event, input) => {
+    const zoomStep = 0.25;
+    const currentZoom = win.webContents.getZoomLevel();
+
+    if (input.type === 'keyDown' && input.control) {
+      switch (input.key) {
+        case '+':
+        case '=':
+        case 'Add':
+          win.webContents.setZoomLevel(currentZoom + zoomStep);
+          event.preventDefault();
+          break;
+        case '-':
+        case 'Subtract':
+          win.webContents.setZoomLevel(currentZoom - zoomStep);
+          event.preventDefault();
+          break;
+        case '0':
+        case 'Insert':
+          win.webContents.setZoomLevel(0);
+          event.preventDefault();
+          break;
+      }
+    }
+
+    if (
+      input.type === 'mouseWheel' &&
+      input.control &&
+      typeof input.deltaY === 'number'
+    ) {
+      const direction = input.deltaY > 0 ? -1 : 1;
+      win.webContents.setZoomLevel(currentZoom + direction * zoomStep);
+      event.preventDefault();
+    }
+
+    if (
+      input.type === 'mouseDown' &&
+      input.control &&
+      input.button === 'left'
+    ) {
+      win.webContents.setZoomLevel(currentZoom + zoomStep);
+      event.preventDefault();
+    }
+  });
+
   // win.webContents.openDevTools();
+
+  win.webContents.on('zoom-changed', (event, zoomDirection) => {
+    const currentZoom = win.webContents.getZoomLevel();
+    const newZoom =
+      zoomDirection === 'in' ? currentZoom + 0.5 : currentZoom - 0.5;
+    win.webContents.setZoomLevel(newZoom);
+  });
+
   win.webContents.on('did-navigate', (event, url) => {
     const isSecure = url.startsWith('https://');
     win.webContents.send('security-status', isSecure);
@@ -73,6 +130,35 @@ function createWindow() {
     return { action: 'deny' };
   });
 
+  win.webContents.setVisualZoomLevelLimits(1, 3);
+
+  win.setMenuBarVisibility(false);
+  win.setAutoHideMenuBar(true);
+
+  const menuTemplate = [
+    {
+      label: 'Вид',
+      submenu: [
+        {
+          role: 'zoomIn',
+          accelerator: 'CommandOrControl+=',
+          label: 'Увеличить (Ctrl+=)',
+        },
+        {
+          role: 'zoomOut',
+          accelerator: 'CommandOrControl+-',
+          label: 'Уменьшить (Ctrl+-)',
+        },
+        {
+          role: 'resetZoom',
+          accelerator: 'CommandOrControl+0',
+          label: 'Сбросить масштаб (Ctrl+0)',
+        },
+      ],
+    },
+  ];
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate));
   win.setMenuBarVisibility(false);
   win.setAutoHideMenuBar(true);
 
@@ -81,8 +167,6 @@ function createWindow() {
   } else {
     win.loadFile(join(__dirname, 'dist', 'index.html'));
   }
-
-  Menu.setApplicationMenu(null);
 }
 
 if (isDev) {
