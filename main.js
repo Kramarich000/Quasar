@@ -5,6 +5,7 @@ import {
   screen,
   ipcMain,
   session,
+  dialog,
   shell,
   webContents,
 } from 'electron';
@@ -37,9 +38,11 @@ function createWindow() {
     // height,
     width: 1200,
     height: 900,
+    defaultFontSize: 16,
     minWidth: 800,
-    minHeight: 600,
+    minHeight: 800,
     transparent: false,
+    zoomFactor: 1.0,
     webPreferences: {
       partition: 'persist:browser',
       preload: join(__dirname, 'preload.js'),
@@ -51,8 +54,16 @@ function createWindow() {
       offscreen: false,
       //plugins: true,
       scrollBounce: true,
+      experimentalFeatures: true,
       enableWebGL: true,
+      backgroundThrottling: false,
+      zoomable: true,
+      enableBlinkFeatures: 'PictureInPicture,FileSystemAccess',
       enableAccelerated2dCanvas: true,
+      webSecurity: true,
+      enableBlinkFeatures: 'MediaCapabilities,WebCodecs',
+      allowRunningInsecureContent: false,
+      disableHtmlFullscreenWindowResize: true,
     },
   });
 
@@ -60,31 +71,29 @@ function createWindow() {
     win = null;
   });
 
-  win.webContents.setVisualZoomLevelLimits(0.25, 5);
   win.webContents.setZoomLevel(0);
 
   win.webContents.on('before-input-event', (event, input) => {
     const zoomStep = 0.25;
     const currentZoom = win.webContents.getZoomLevel();
 
+    const minZoom = -1.5;
+    const maxZoom = 1.5;
+
     if (input.type === 'keyDown' && input.control) {
-      switch (input.key) {
-        case '+':
-        case '=':
-        case 'Add':
+      if (['+', '=', 'Add'].includes(input.key)) {
+        if (currentZoom + zoomStep <= maxZoom) {
           win.webContents.setZoomLevel(currentZoom + zoomStep);
-          event.preventDefault();
-          break;
-        case '-':
-        case 'Subtract':
+        }
+        event.preventDefault();
+      } else if (['-', 'Subtract'].includes(input.key)) {
+        if (currentZoom - zoomStep >= minZoom) {
           win.webContents.setZoomLevel(currentZoom - zoomStep);
-          event.preventDefault();
-          break;
-        case '0':
-        case 'Insert':
-          win.webContents.setZoomLevel(0);
-          event.preventDefault();
-          break;
+        }
+        event.preventDefault();
+      } else if (['0', 'Insert'].includes(input.key)) {
+        win.webContents.setZoomLevel(0);
+        event.preventDefault();
       }
     }
 
@@ -94,7 +103,10 @@ function createWindow() {
       typeof input.deltaY === 'number'
     ) {
       const direction = input.deltaY > 0 ? -1 : 1;
-      win.webContents.setZoomLevel(currentZoom + direction * zoomStep);
+      const newZoom = currentZoom + direction * zoomStep;
+      if (newZoom >= minZoom && newZoom <= maxZoom) {
+        win.webContents.setZoomLevel(newZoom);
+      }
       event.preventDefault();
     }
 
@@ -103,7 +115,9 @@ function createWindow() {
       input.control &&
       input.button === 'left'
     ) {
-      win.webContents.setZoomLevel(currentZoom + zoomStep);
+      if (currentZoom + zoomStep <= maxZoom) {
+        win.webContents.setZoomLevel(currentZoom + zoomStep);
+      }
       event.preventDefault();
     }
   });
@@ -111,10 +125,18 @@ function createWindow() {
   // win.webContents.openDevTools();
 
   win.webContents.on('zoom-changed', (event, zoomDirection) => {
-    const currentZoom = win.webContents.getZoomLevel();
-    const newZoom =
-      zoomDirection === 'in' ? currentZoom + 0.5 : currentZoom - 0.5;
-    win.webContents.setZoomLevel(newZoom);
+    const currentLevel = win.webContents.getZoomLevel();
+
+    const minLevel = -3;
+    const maxLevel = 5;
+
+    if (zoomDirection === 'in' && currentLevel < maxLevel) {
+      win.webContents.setZoomLevel(currentLevel + 1);
+    } else if (zoomDirection === 'out' && currentLevel > minLevel) {
+      win.webContents.setZoomLevel(currentLevel - 1);
+    }
+
+    event.preventDefault();
   });
 
   win.webContents.on('did-navigate', (event, url) => {
@@ -132,35 +154,190 @@ function createWindow() {
 
   win.webContents.setVisualZoomLevelLimits(1, 3);
 
-  win.setMenuBarVisibility(false);
-  win.setAutoHideMenuBar(true);
-
+  const isMac = process.platform === 'darwin';
   const menuTemplate = [
+    ...(isMac
+      ? [
+          {
+            label: app.name,
+            submenu: [
+              { role: 'about', label: `О программе ${app.name}` },
+              { type: 'separator' },
+              { role: 'services', label: 'Службы' },
+              { type: 'separator' },
+              { role: 'hide', label: 'Скрыть' },
+              { role: 'hideOthers', label: 'Скрыть другие' },
+              { role: 'unhide', label: 'Показать всё' },
+              { type: 'separator' },
+              { role: 'quit', label: 'Выйти', accelerator: 'Command+Q' },
+            ],
+          },
+        ]
+      : []),
+
+    {
+      label: 'Файл',
+      submenu: [
+        isMac
+          ? { role: 'close', label: 'Закрыть окно', accelerator: 'Command+W' }
+          : { role: 'quit', label: 'Выйти', accelerator: 'Alt+F4' },
+      ],
+    },
+
+    {
+      label: 'Правка',
+      submenu: [
+        { role: 'undo', label: 'Отменить', accelerator: 'CmdOrCtrl+Z' },
+        { role: 'redo', label: 'Вернуть', accelerator: 'CmdOrCtrl+Y' },
+        { type: 'separator' },
+        { role: 'cut', label: 'Вырезать', accelerator: 'CmdOrCtrl+X' },
+        { role: 'copy', label: 'Копировать', accelerator: 'CmdOrCtrl+C' },
+        { role: 'paste', label: 'Вставить', accelerator: 'CmdOrCtrl+V' },
+        {
+          role: 'pasteAndMatchStyle',
+          label: 'Вставить со стилем',
+          accelerator: 'Shift+CmdOrCtrl+V',
+        },
+        { role: 'delete', label: 'Удалить' },
+        {
+          role: 'selectAll',
+          label: 'Выделить всё',
+          accelerator: 'CmdOrCtrl+A',
+        },
+      ],
+    },
+
     {
       label: 'Вид',
       submenu: [
+        { role: 'reload', label: 'Перезагрузить', accelerator: 'CmdOrCtrl+R' },
+        {
+          role: 'forceReload',
+          label: 'Перезагрузить без кеша',
+          accelerator: 'Shift+CmdOrCtrl+R',
+        },
+        { role: 'viewMenu' },
+        { type: 'separator' },
+        {
+          role: 'toggleDevTools',
+          label: 'Инструменты разработчика',
+          accelerator: isMac ? 'Alt+Command+I' : 'Ctrl+Shift+I',
+        },
+        { type: 'separator' },
+        { role: 'toggleTabBar' },
+        { role: 'selectNextTab' },
+        { role: 'selectPreviousTab' },
+        {
+          role: 'resetZoom',
+          label: 'Сбросить масштаб',
+          accelerator: 'CmdOrCtrl+0',
+        },
         {
           role: 'zoomIn',
-          accelerator: 'CommandOrControl+=',
-          label: 'Увеличить (Ctrl+=)',
+          label: 'Увеличить масштаб',
+          accelerator: 'CmdOrCtrl+=',
         },
         {
           role: 'zoomOut',
-          accelerator: 'CommandOrControl+-',
-          label: 'Уменьшить (Ctrl+-)',
+          label: 'Уменьшить масштаб',
+          accelerator: 'CmdOrCtrl+-',
+        },
+        { type: 'separator' },
+        {
+          role: 'togglefullscreen',
+          label: 'Полноэкранный режим',
+          accelerator: isMac ? 'Ctrl+Command+F' : 'F11',
+        },
+      ],
+    },
+    {
+      label: 'Сервисы',
+      submenu: [
+        { role: 'speechSubmenu' },
+        { role: 'toggleSmartQuotes' },
+        { role: 'toggleSmartDashes' },
+      ],
+    },
+    {
+      label: 'Окно',
+      submenu: [
+        { role: 'mergeAllWindows' },
+        { role: 'moveTabToNewWindow' },
+        { role: 'showAllTabs' },
+      ],
+    },
+    {
+      label: 'Трей',
+      submenu: [
+        {
+          label: 'Открыть окно',
+          click: () => win.show(),
         },
         {
-          role: 'resetZoom',
-          accelerator: 'CommandOrControl+0',
-          label: 'Сбросить масштаб (Ctrl+0)',
+          label: 'Выход',
+          role: 'quit',
+        },
+      ],
+    },
+    {
+      label: 'Инструменты',
+      submenu: [
+        {
+          label: 'Очистить кеш',
+          click: () => win.webContents.session.clearCache(),
+        },
+        {
+          label: 'Настройки',
+          click: () => {},
+        },
+      ],
+    },
+    {
+      label: 'Навигация',
+      submenu: [
+        {
+          label: 'Назад',
+          accelerator: 'Alt+Left',
+          click: () => {
+            const webContents = win.webContents;
+            if (webContents.canGoBack()) webContents.goBack();
+          },
+        },
+        {
+          label: 'Вперёд',
+          accelerator: 'Alt+Right',
+          click: () => {
+            const webContents = win.webContents;
+            if (webContents.canGoForward()) webContents.goForward();
+          },
+        },
+        { type: 'separator' },
+        {
+          label: 'Домой',
+          click: () => win.loadURL('https://example.com'),
+        },
+      ],
+    },
+
+    {
+      label: 'Справка',
+      submenu: [
+        {
+          label: 'Сообщить об ошибке',
+          click: async () => {
+            const { shell } = require('electron');
+            await shell.openExternal(
+              'https://github.com/Kramarich000/Quasar/issues',
+            );
+          },
         },
       ],
     },
   ];
 
   Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate));
-  win.setMenuBarVisibility(false);
-  win.setAutoHideMenuBar(true);
+  // win.setMenuBarVisibility(false);
+  // win.setAutoHideMenuBar(true);
 
   if (isDev) {
     win.loadURL('http://localhost:5173');
@@ -421,10 +598,36 @@ autoUpdater.on('checking-for-update', () =>
 autoUpdater.on('update-available', (info) =>
   console.log('Есть обновление', info),
 );
-autoUpdater.on('update-downloaded', () => {
-  console.log('Обновление скачано, скоро перезапуск…');
-  autoUpdater.quitAndInstall();
+autoUpdater.on('update-downloaded', async (info) => {
+  console.log('Обновление скачано:', info);
+
+  const { response } = await dialog.showMessageBox({
+    type: 'info',
+    buttons: ['Перезапустить сейчас', 'Позже'],
+    defaultId: 0,
+    cancelId: 1,
+    title: 'Обновление доступно',
+    message: 'Обновление загружено. Хотите установить его сейчас?',
+    detail: info.files?.[0]?.size
+      ? `Версия: ${info.version}\nРазмер: ~${(
+          info.files[0].size /
+          1024 /
+          1024
+        ).toFixed(1)} МБ`
+      : `Версия: ${info.version}`,
+  });
+
+  if (response === 0) {
+    try {
+      autoUpdater.quitAndInstall();
+    } catch (e) {
+      console.error('Ошибка при установке обновления:', e);
+    }
+  } else {
+    console.log('Установка отложена');
+  }
 });
+
 autoUpdater.on('error', (err) => console.error('Ошибка обновления', err));
 
 const gotLock = app.requestSingleInstanceLock();

@@ -10,10 +10,8 @@ export function TabContainer({
   onSelectTab,
   onCloseTab,
 }) {
-  const y = useMotionValue(0);
-
   useHotkeys((e) => {
-    if (e.ctrlKey && e.key.toLowerCase() === 'w') {
+    if (e.ctrlKey && e.code === 'KeyW') {
       e.preventDefault();
       onCloseTab(activeTab);
     }
@@ -27,6 +25,7 @@ export function TabContainer({
       return false;
     }
   }
+
   return (
     <motion.div
       layout={false}
@@ -43,12 +42,6 @@ export function TabContainer({
       }}
       onMouseDown={(event) => {
         if (event.button === 1) {
-          event.preventDefault();
-          onCloseTab(tab.id);
-        }
-      }}
-      onKeyDown={(event) => {
-        if (event.ctrlKey && event.key === 'w') {
           event.preventDefault();
           onCloseTab(tab.id);
         }

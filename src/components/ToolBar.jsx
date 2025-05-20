@@ -292,6 +292,8 @@ export default function ToolBar({ webviewRef, url, onChangeUrl }) {
             onKeyDown={handleKeyDown}
             onClick={(e) => {
               e.target.select();
+              e.stopPropagation();
+              e.preventDefault();
               setIsSuggestOpen(suggestions.length > 0);
             }}
             onBlur={() => {
@@ -301,6 +303,8 @@ export default function ToolBar({ webviewRef, url, onChangeUrl }) {
             }}
             onFocus={(e) => {
               e.target.select();
+              e.stopPropagation();
+              e.preventDefault();
               setIsSuggestOpen(suggestions.length > 0);
             }}
             placeholder="Введите URL или запрос"

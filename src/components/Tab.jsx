@@ -260,7 +260,7 @@ export default function Tab({ url, webviewRef, isActive, onChangeUrl }) {
       />
       {!url && isActive && (
         <div
-          className="p-6 flex flex-col items-center justify-center mx-auto text-center text-2xl text-cyan-700"
+          className="p-6 flex flex-col items-center overflow-auto justify-center mx-auto text-center text-2xl text-cyan-700"
           style={{
             position: 'absolute',
             top: 0,
@@ -276,8 +276,8 @@ export default function Tab({ url, webviewRef, isActive, onChangeUrl }) {
               <div className="mb-12">
                 <svg
                   className="pointer-events-none"
-                  width="300"
-                  height="300"
+                  width="200"
+                  height="200"
                   viewBox="0 0 100 100"
                   fill="none"
                   xmlns="http://www.w3.org/2000/svg"
@@ -322,7 +322,8 @@ export default function Tab({ url, webviewRef, isActive, onChangeUrl }) {
                   onChange={(e) => setInputValue(e.target.value)}
                   onKeyDown={handleKeyDown}
                   onClick={(e) => {
-                    e.target.select();
+                    // e.target.select();
+                    e.preventDefault();
                     setIsSuggestOpen(suggestions.length > 0);
                   }}
                   onBlur={() => {
@@ -331,7 +332,9 @@ export default function Tab({ url, webviewRef, isActive, onChangeUrl }) {
                     }, 100);
                   }}
                   onFocus={(e) => {
-                    e.target.select();
+                    // e.target.select();
+                    e.stopPropagation();
+                    e.preventDefault();
                     setIsSuggestOpen(suggestions.length > 0);
                   }}
                   placeholder="Введите URL или запрос"
@@ -372,8 +375,8 @@ export default function Tab({ url, webviewRef, isActive, onChangeUrl }) {
               <div className="mb-12">
                 <svg
                   className="pointer-events-none"
-                  width="300"
-                  height="300"
+                  width="200"
+                  height="200"
                   viewBox="0 0 100 100"
                   fill="none"
                   xmlns="http://www.w3.org/2000/svg"
@@ -416,11 +419,15 @@ export default function Tab({ url, webviewRef, isActive, onChangeUrl }) {
                   type="text"
                   value={inputValue}
                   onClick={(e) => {
-                    e.target.select();
+                    e.preventDefault();
+                    e.stopPropagation();
+                    // e.target.select();
                     setIsSuggestOpen(suggestions.length > 0);
                   }}
                   onFocus={(e) => {
-                    e.target.select();
+                    // e.target.select();
+                    e.stopPropagation();
+                    e.preventDefault();
                     setIsSuggestOpen(suggestions.length > 0);
                   }}
                   onBlur={() => {
