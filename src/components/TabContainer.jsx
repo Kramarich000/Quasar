@@ -1,8 +1,7 @@
 import { motion, useMotionValue, AnimatePresence } from 'framer-motion';
 import { IoClose } from 'react-icons/io5';
 import useHotkeys from '../hooks/useHotKeys';
-import { useState, useEffect } from 'react';
-import defaultFavicon from '../assets/default-favicon.svg';
+import { useState, useEffect, useRef } from 'react';
 
 export function TabContainer({
   tab,
@@ -13,6 +12,72 @@ export function TabContainer({
   onSelectTab,
   onCloseTab,
 }) {
+  const [isFaviconLoading, setIsFaviconLoading] = useState(true);
+  const faviconUrl = favicons[tab.id] || defaultFavicon;
+  const imgRef = useRef(null);
+  const loadingTimeoutRef = useRef(null);
+  const prevUrlRef = useRef(tab.url);
+
+  // Эффект для отслеживания изменений URL
+  useEffect(() => {
+    if (prevUrlRef.current !== tab.url) {
+      console.log('URL changed, showing loader:', { oldUrl: prevUrlRef.current, newUrl: tab.url });
+      setIsFaviconLoading(true);
+      prevUrlRef.current = tab.url;
+    }
+  }, [tab.url]);
+
+  useEffect(() => {
+    if (loadingTimeoutRef.current) {
+      clearTimeout(loadingTimeoutRef.current);
+    }
+
+    if (faviconUrl.startsWith('data:') || faviconUrl === defaultFavicon) {
+      setIsFaviconLoading(false);
+      return;
+    }
+
+    const img = new Image();
+    
+    img.onload = () => {
+      loadingTimeoutRef.current = setTimeout(() => {
+        if (imgRef.current && imgRef.current.src === faviconUrl) {
+          setIsFaviconLoading(false);
+        }
+      }, 100);
+    };
+
+    img.onerror = () => {
+      if (imgRef.current && imgRef.current.src === faviconUrl) {
+        setIsFaviconLoading(false);
+      }
+    };
+
+    img.src = faviconUrl;
+
+    return () => {
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+      }
+    };
+  }, [faviconUrl, defaultFavicon]);
+
+  const handleFaviconLoad = () => {
+    console.log('Favicon loaded in img element:', { tabId: tab.id, faviconUrl });
+    setIsFaviconLoading(false);
+  };
+
+  const handleFaviconError = (e) => {
+    console.log('Favicon error in img element:', { tabId: tab.id, faviconUrl });
+    if (e.target.src !== defaultFavicon) {
+      e.target.src = defaultFavicon;
+    } else {
+      setIsFaviconLoading(false);
+    }
+  };
+
+  console.log('Rendering tab:', { tabId: tab.id, faviconUrl, isFaviconLoading });
+
   useHotkeys((e) => {
     if (e.ctrlKey && e.code === 'KeyW') {
       e.preventDefault();
@@ -42,49 +107,29 @@ export function TabContainer({
     }
     return tab.url || 'Новая вкладка';
   }
-
-  const [isFaviconLoading, setIsFaviconLoading] = useState(true);
-  const [currentFavicon, setCurrentFavicon] = useState(defaultFavicon);
-
-  useEffect(() => {
-    if (favicons[tab.id]) {
-      setIsFaviconLoading(true);
-      const img = new Image();
-      img.onload = () => {
-        setCurrentFavicon(favicons[tab.id]);
-        setIsFaviconLoading(false);
-      };
-      img.onerror = () => {
-        setCurrentFavicon(defaultFavicon);
-        setIsFaviconLoading(false);
-      };
-      img.src = favicons[tab.id];
-    }
-  }, [favicons, tab.id]);
-
   return (
     <motion.div
       layout={false}
       initial={{ opacity: 0, maxWidth: '0px' }}
-      animate={{ 
-        opacity: 1, 
+      animate={{
+        opacity: 1,
         maxWidth: '300px',
         transition: {
           duration: 0.2,
-          ease: 'easeOut'
-        }
+          ease: 'easeOut',
+        },
       }}
-      exit={{ 
-        opacity: 0, 
+      exit={{
+        opacity: 0,
         maxWidth: '0px',
         transition: {
           duration: 0.15,
-          ease: 'easeIn'
-        }
+          ease: 'easeIn',
+        },
       }}
-      style={{ 
+      style={{
         overflow: 'hidden',
-        willChange: 'opacity, max-width'
+        willChange: 'opacity, max-width',
       }}
       key={tab.id}
       onClick={(event) => {
@@ -122,19 +167,20 @@ export function TabContainer({
         }}
       /> */}
 
-      {loadingTabs[tab.id] || isFaviconLoading ? (
+      {isFaviconLoading ? (
         <div className="flex items-center justify-center z-11">
           <div className="animate-spin rounded-full !h-5 !w-5 border-t-2 border-[#0e7490] bg-transparent"></div>
         </div>
       ) : (
         <img
+          ref={imgRef}
+          key={`${tab.id}-${faviconUrl}`}
           className="!w-5 !h-5 object-contain !pointer-events-none !select-none"
           style={{ WebkitAppRegion: 'no-drag' }}
-          src={currentFavicon}
+          onLoad={handleFaviconLoad}
+          onError={handleFaviconError}
+          src={faviconUrl}
           alt=""
-          onError={(e) => {
-            e.target.src = defaultFavicon;
-          }}
         />
       )}
 

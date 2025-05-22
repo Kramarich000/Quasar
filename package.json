@@ -1,7 +1,7 @@
 {
   "name": "quasar",
   "private": true,
-  "version": "1.0.6",
+  "version": "1.0.7",
   "main": "main.js",
   "description": "Quasar Browser",
   "author": "Kramarich",
@@ -52,7 +52,8 @@
     "files": [
       "dist/**/*",
       "main.js",
-      "preload.js"
+      "preload.js",
+      "createBrowserView.js"
     ],
     "directories": {
       "buildResources": "dist"

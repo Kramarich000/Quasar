@@ -1,5 +1,16 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+window.addEventListener('DOMContentLoaded', () => {
+  if (document.body.children.length === 0) {
+    while (document.head.firstChild)
+      document.head.removeChild(document.head.firstChild);
+    while (document.body.firstChild)
+      document.body.removeChild(document.body.firstChild);
+
+    document.body.style.backgroundColor = 'white';
+  }
+});
+
 const allowedChannels = {
   minimize: { type: 'send' },
   maximize: { type: 'send' },
@@ -21,7 +32,6 @@ const allowedChannels = {
   bvCreateTab: { type: 'invoke' },
   bvSwitchTab: { type: 'invoke' },
   bvCloseTab: { type: 'send' },
-  getFavicon: { type: 'invoke' },
 
   freezeTab: { type: 'send' },
   unfreezeTab: { type: 'send' },

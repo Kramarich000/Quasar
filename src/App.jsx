@@ -7,7 +7,7 @@ import './App.css';
 import './styles/global.css';
 
 export default function App() {
-  const MAX_TABS = 10;
+  const MAX_TABS = 12;
 
   const generateId = () => {
     if (crypto && crypto.randomUUID) {
@@ -21,7 +21,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSecure, setIsSecure] = useState(true);
-  const favicons = useFavicon(tabs, activeTab);
+  const favicons = useFavicon(tabs);
 
   useEffect(() => {
     const header = document.querySelector('.header-bar');
@@ -56,9 +56,7 @@ export default function App() {
     const onTitleUpdated = ({ id, title }) => {
       setTabs((t) => t.map((tab) => (tab.id === id ? { ...tab, title } : tab)));
     };
-    const onFaviconUpdated = ({ id, favicon }) => {
-      setFavicons((prev) => ({ ...prev, [id]: favicon }));
-    };
+
     const onUrlUpdated = ({ id, url }) => {
       setTabs((t) => t.map((tab) => (tab.id === id ? { ...tab, url } : tab)));
     };
@@ -67,7 +65,6 @@ export default function App() {
 
     window.api.on('tabSwitched', onSwitched);
     window.api.on('tabTitleUpdated', onTitleUpdated);
-    window.api.on('tabFaviconUpdated', onFaviconUpdated);
     window.api.on('tabUrlUpdated', onUrlUpdated);
     window.api.on('bvDidStartLoading', onLoadStart);
     window.api.on('bvDidStopLoading', onLoadStop);
@@ -75,7 +72,6 @@ export default function App() {
     return () => {
       window.api.off('tabSwitched', onSwitched);
       window.api.off('tabTitleUpdated', onTitleUpdated);
-      window.api.off('tabFaviconUpdated', onFaviconUpdated);
       window.api.off('tabUrlUpdated', onUrlUpdated);
       window.api.off('bvDidStartLoading', onLoadStart);
       window.api.off('bvDidStopLoading', onLoadStop);
@@ -102,7 +98,7 @@ export default function App() {
 
   const addTab = async (isIncognito = false) => {
     if (tabs.length >= MAX_TABS) return;
-    
+
     const id = generateId();
     try {
       const result = await window.api.bvCreateTab({ id, url: '' });
@@ -120,7 +116,7 @@ export default function App() {
 
   const selectTab = async (id) => {
     if (id === activeTab) return;
-    
+
     try {
       await window.api.bvSwitchTab(id);
       setActiveTab(id);
@@ -134,7 +130,7 @@ export default function App() {
       setTabs((t) =>
         t.map((tab) => (tab.id === id ? { ...tab, url: newUrl } : tab)),
       );
-      
+
       if (id === activeTab) {
         await window.api.bvLoadUrl(newUrl);
       }
@@ -145,12 +141,12 @@ export default function App() {
 
   const closeTab = async (id) => {
     if (tabs.length === 1) return;
-    
+
     try {
       await window.api.bvCloseTab(id);
-      
+
       setTabs((prev) => prev.filter((tab) => tab.id !== id));
-      
+
       if (activeTab === id) {
         const remaining = tabs.filter((tab) => tab.id !== id);
         if (remaining.length > 0) {
@@ -184,4 +180,3 @@ export default function App() {
     </div>
   );
 }
-

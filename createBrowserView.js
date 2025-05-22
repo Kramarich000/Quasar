@@ -1,8 +1,5 @@
-import { BrowserView, Menu } from 'electron';
-import { dirname } from 'path';
+import { BrowserView, Menu, screen } from 'electron';
 import { fileURLToPath } from 'url';
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
 
 const generateId = () => {
   return `${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
@@ -10,10 +7,13 @@ const generateId = () => {
 
 export default function createBrowserView(options = {}, win) {
   let id = generateId();
+  const { width, height } = screen.getPrimaryDisplay().workAreaSize;
   const uniquePartition = `persist:tab-${id}`;
   const defaultWebPreferences = {
     contextIsolation: true,
     titleBarStyle: 'default',
+    width: width,
+    height: height,
     sandbox: true,
     devTools: true,
     nodeIntegration: false,
@@ -47,8 +47,8 @@ export default function createBrowserView(options = {}, win) {
       standard: 'Arial',
       serif: 'Times New Roman',
       sansSerif: 'Arial',
-      monospace: 'Courier New'
-    }
+      monospace: 'Courier New',
+    },
   };
 
   const webPreferences = {
@@ -57,54 +57,31 @@ export default function createBrowserView(options = {}, win) {
   };
 
   const view = new BrowserView({ webPreferences });
-  
-  // Настройка сессии
+
   const ses = view.webContents.session;
-  
-  // Очищаем все данные сессии при создании
+
   ses.clearCache();
   ses.clearStorageData({
-    storages: ['cookies', 'filesystem', 'indexdb', 'localstorage', 'shadercache', 'websql', 'serviceworkers', 'cachestorage'],
+    storages: [
+      'cookies',
+      'filesystem',
+      'indexdb',
+      'localstorage',
+      'shadercache',
+      'websql',
+      'serviceworkers',
+      'cachestorage',
+    ],
   });
 
-  // Добавляем обработчик начала загрузки
-  view.webContents.on('did-start-loading', () => {
-    // Очищаем DOM только если это about:blank
-    const currentUrl = view.webContents.getURL();
-    if (currentUrl === 'about:blank') {
-      view.webContents.executeJavaScript(`
-        while (document.body.firstChild) {
-          document.body.removeChild(document.body.firstChild);
-        }
-        while (document.head.firstChild) {
-          document.head.removeChild(document.head.firstChild);
-        }
-      `).catch(console.error);
-    }
-  });
-
-  // Добавляем обработчик готовности DOM
-  view.webContents.on('dom-ready', () => {
-    // Устанавливаем белый фон для пустых страниц
-    view.webContents.executeJavaScript(`
-      if (document.body.children.length === 0) {
-        document.body.style.backgroundColor = 'white';
-      }
-    `).catch(console.error);
-  });
-
-  // Настройка разрешений
   ses.setPermissionRequestHandler((webContents, permission, callback) => {
     const allowedPermissions = ['media', 'geolocation', 'notifications'];
     callback(allowedPermissions.includes(permission));
   });
 
-  // Настройка обработки URL
   view.webContents.on('will-navigate', (event, url) => {
-    // Проверяем только на валидность URL
     if (!/^https?:\/\//.test(url) && !/^[\w-]+(\.[\w-]+)+/.test(url)) {
       event.preventDefault();
-      // Отправляем событие в основной процесс для обработки
       win.webContents.send('handleSearchQuery', url);
     }
   });
@@ -114,24 +91,20 @@ export default function createBrowserView(options = {}, win) {
     view.webContents.setVisualZoomLevelLimits(1, 3);
   });
 
-  // Обработка ошибок загрузки
   view.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
     console.error('Failed to load:', errorDescription);
   });
 
-  // Обработка ошибок рендеринга
   view.webContents.on('render-process-gone', (event, details) => {
     console.error('Render process gone:', details);
   });
 
-  // Открываем DevTools при создании вкладки
   // view.webContents.openDevTools();
 
   view.webContents.setZoomFactor(1);
   view.webContents.setVisualZoomLevelLimits(1, 3);
 
   view.webContents.on('before-input-event', (event, input) => {
-    // Проверяем, что view и webContents существуют
     if (!view || !view.webContents || view.webContents.isDestroyed()) {
       return;
     }

@@ -1,41 +1,52 @@
 import { useState, useEffect } from 'react';
 import defaultFavicon from '../assets/default-favicon.svg';
 
-// Кэш для favicon
-const faviconCache = new Map();
-
-export function useFavicon(tabs, activeTab) {
-  const [favicons, setFavicons] = useState({});
+export function useFavicon(tabs) {
+  const [favicons, setFavicons] = useState(() =>
+    tabs.reduce((acc, tab) => {
+      acc[tab.id] = defaultFavicon;
+      return acc;
+    }, {}),
+  );
 
   useEffect(() => {
-    const activeTabData = tabs.find((tab) => tab.id === activeTab);
-    if (!activeTabData) return;
+    setFavicons((prev) => {
+      const next = {};
+      tabs.forEach((tab) => {
+        next[tab.id] = prev[tab.id] || defaultFavicon;
+      });
+      return next;
+    });
+  }, [tabs]);
 
-    const getFavicon = async (tabId) => {
-      try {
-        const result = await window.api.getFavicon(tabId);
-        if (result && result.favicon) {
-          setFavicons((prev) => ({
-            ...prev,
-            [tabId]: result.favicon,
-          }));
-        } else {
-          setFavicons((prev) => ({
-            ...prev,
-            [tabId]: defaultFavicon,
-          }));
-        }
-      } catch (error) {
-        console.error('Error getting favicon:', error);
-        setFavicons((prev) => ({
-          ...prev,
-          [tabId]: defaultFavicon,
-        }));
+  useEffect(() => {
+    const handler = ({ id, favicon }) => {
+      console.log('Favicon hook received update:', { id, favicon });
+      
+      if (!favicon) {
+        console.log('No favicon provided, using default');
+        return;
       }
+      
+      setFavicons((prev) => {
+        if (prev[id] === favicon) {
+          console.log('Favicon unchanged for tab:', id);
+          return prev;
+        }
+        
+        console.log('Updating favicon for tab:', id, 'from:', prev[id], 'to:', favicon);
+        return {
+          ...prev,
+          [id]: favicon,
+        };
+      });
     };
 
-    getFavicon(activeTab);
-  }, [tabs, activeTab]);
+    window.api.on('tabFaviconUpdated', handler);
+    return () => {
+      window.api.off('tabFaviconUpdated', handler);
+    };
+  }, []);
 
   return favicons;
 }

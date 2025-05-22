@@ -2,15 +2,7 @@ import { app } from 'electron';
 app.commandLine.appendSwitch('enable-pinch-zoom');
 app.commandLine.appendSwitch('enable-features', 'PinchZoom');
 
-import {
-  BrowserWindow,
-  ipcMain,
-  dialog,
-  shell,
-  BrowserView,
-  webContents,
-  session,
-} from 'electron';
+import { BrowserWindow, ipcMain, dialog, shell, session } from 'electron';
 
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -19,8 +11,7 @@ import pkg from 'electron-updater';
 import path from 'path';
 const { autoUpdater } = pkg;
 import contextMenu from 'electron-context-menu';
-import createBrowserView from './config/createBrowserView.js';
-
+import createBrowserView from './createBrowserView.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
@@ -33,6 +24,163 @@ let headerHeight = 84.86;
 
 const views = new Map();
 let activeTabId = null;
+
+const POOL_SIZE = 25;
+const viewPool = [];
+const viewInUse = new Map();
+
+function attachViewListeners(view) {
+  view.webContents.on('did-start-loading', () =>
+    win.webContents.send('bvDidStartLoading', view._tabId),
+  );
+  view.webContents.on('did-stop-loading', () =>
+    win.webContents.send('bvDidStopLoading', view._tabId),
+  );
+  view.webContents.on('ready-to-show', () =>
+    win.webContents.send('bvDomReady', view._tabId),
+  );
+  view.webContents.on('page-title-updated', (_e, title) =>
+    win.webContents.send('tabTitleUpdated', { id: view._tabId, title }),
+  );
+  view.webContents.on('page-favicon-updated', async (_e, favicons) => {
+    console.log('Favicon update event:', { 
+      tabId: view._tabId, 
+      hasFavicons: !!favicons?.length,
+      favicons 
+    });
+    
+    if (!favicons?.length) {
+      win.webContents.send('tabFaviconUpdated', {
+        id: view._tabId,
+        favicon: null,
+      });
+      return;
+    }
+
+    try {
+      const faviconUrl = new URL(favicons[0], view.webContents.getURL()).href;
+      console.log('Fetching favicon:', faviconUrl);
+      
+      // Создаем сессию для загрузки фавиконки
+      const faviconSession = session.fromPartition('persist:favicons');
+      
+      // Настраиваем CORS для фавиконок
+      await faviconSession.webRequest.onHeadersReceived((details, callback) => {
+        callback({
+          responseHeaders: {
+            ...details.responseHeaders,
+            'Access-Control-Allow-Origin': ['*'],
+            'Access-Control-Allow-Methods': ['GET'],
+            'Access-Control-Allow-Headers': ['*'],
+          },
+        });
+      });
+
+      // Загружаем фавиконку
+      const response = await fetch(faviconUrl, {
+        headers: {
+          'Accept': 'image/*',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch favicon: ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      const dataUrl = `data:${blob.type};base64,${Buffer.from(await blob.arrayBuffer()).toString('base64')}`;
+      
+      console.log('Favicon loaded successfully:', { tabId: view._tabId, type: blob.type });
+      
+      // Добавляем небольшую задержку для плавности
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      win.webContents.send('tabFaviconUpdated', {
+        id: view._tabId,
+        favicon: dataUrl,
+      });
+    } catch (error) {
+      console.error('Error loading favicon:', error);
+      win.webContents.send('tabFaviconUpdated', {
+        id: view._tabId,
+        favicon: null,
+      });
+    }
+  });
+  view.webContents.on('did-navigate', (_e, url) =>
+    win.webContents.send('tabUrlUpdated', { id: view._tabId, url }),
+  );
+  view.webContents.on('did-navigate-in-page', (_e, url) =>
+    win.webContents.send('tabUrlUpdated', { id: view._tabId, url }),
+  );
+}
+
+async function createPooledView(poolId) {
+  const partition = `persist:pool-${poolId}`;
+  const tabSession = session.fromPartition(partition, { cache: false });
+  const view = createBrowserView({
+    webPreferences: {
+      contextIsolation: true,
+      sandbox: true,
+      partition,
+      webSecurity: true,
+      allowRunningInsecureContent: false,
+      nodeIntegration: false,
+      webviewTag: false,
+      backgroundThrottling: false,
+      enableRemoteModule: false,
+      spellcheck: false,
+      plugins: false,
+      session: tabSession,
+    },
+    win,
+  });
+
+  attachViewListeners(view);
+
+  const tpl = join(__dirname, 'dist', 'tab-content.html');
+  if (existsSync(tpl)) {
+    await view.webContents.loadFile(tpl);
+  }
+
+  viewInUse.set(view, false);
+  return view;
+}
+
+async function initViewPool() {
+  for (let i = 0; i < POOL_SIZE; i++) {
+    const view = await createPooledView(i);
+    viewPool.push(view);
+  }
+}
+
+function acquireView(tabId) {
+  let view = viewPool.find((v) => !viewInUse.get(v));
+  if (!view) {
+    console.warn('Пул исчерпан — создаём новый BrowserView');
+    view = createBrowserView({
+      webPreferences: {
+        contextIsolation: true,
+        sandbox: true,
+        backgroundThrottling: false,
+      },
+      win,
+    });
+    attachViewListeners(view);
+  }
+  view._tabId = tabId;
+  viewInUse.set(view, true);
+  return view;
+}
+
+async function releaseView(view) {
+  win.removeBrowserView(view);
+  const tpl = join(__dirname, 'dist', 'tab-content.html');
+  if (existsSync(tpl)) {
+    await view.webContents.loadFile(tpl);
+  }
+  viewInUse.set(view, false);
+}
 
 function getCurrentView() {
   if (!activeTabId) return null;
@@ -55,7 +203,7 @@ function createWindow() {
       partition: 'persist:browser',
       preload: join(__dirname, 'preload.js'),
       contextIsolation: true,
-      devTools: false,
+      devTools: true,
       nodeIntegration: false,
       webviewTag: false,
       sandbox: true,
@@ -86,18 +234,43 @@ function createWindow() {
     },
   });
 
-  win.setMaxListeners(20);
-
-  // Запрещаем открытие DevTools для главного окна
-  win.webContents.on('before-input-event', (event, input) => {
-    if (input.type === 'keyDown' && input.control && input.shift && input.key === 'i') {
-      event.preventDefault();
-    }
-  });
-
+  win.setMaxListeners(50);
   win.once('ready-to-show', () => {
     win.show();
   });
+
+  // win.webContents.on('before-input-event', (event, input) => {
+  //   if (
+  //     input.type === 'keyDown' &&
+  //     input.control &&
+  //     input.shift &&
+  //     input.key === 'i'
+  //   ) {
+  //     event.preventDefault();
+  //   }
+  // });
+
+  const resizeHandler = () => {
+    const v = getCurrentView();
+    if (!v) return;
+    const { width, height } = win.getContentBounds();
+    v.setBounds({
+      x: 0,
+      y: Math.floor(headerHeight),
+      width,
+      height: Math.floor(height - headerHeight),
+    });
+  };
+  win.on('resize', resizeHandler);
+  win.on('enter-full-screen', resizeHandler);
+  win.on('leave-full-screen', resizeHandler);
+
+  win.on('focus', () =>
+    getCurrentView()?.webContents.setBackgroundThrottling(false),
+  );
+  win.on('blur', () =>
+    getCurrentView()?.webContents.setBackgroundThrottling(true),
+  );
 
   win.on('focus', () => {
     const view = getCurrentView();
@@ -168,7 +341,7 @@ function createWindow() {
   win.on('closed', () => {
     win = null;
   });
-  // win.webContents.openDevTools({ mode: 'detach' });
+  win.webContents.openDevTools({ mode: 'detach' });
 
   if (isDev) {
     win.loadURL('http://localhost:5173');
@@ -190,34 +363,6 @@ if (isDev) {
 ipcMain.handle('window:openExternalUrl', async (event, url) => {
   if (url && typeof url === 'string' && url.startsWith('http')) {
     await shell.openExternal(url);
-  }
-});
-
-ipcMain.on('window:freezeTab', (event, wcId) => {
-  const wc = webContents.fromId(wcId);
-  if (!wc || wc.isDestroyed()) return;
-
-  wc.setBackgroundThrottling(true);
-
-  try {
-    wc.debugger.attach();
-    wc.debugger.sendCommand('Page.setWebLifecycleState', { state: 'frozen' });
-  } catch (e) {
-    console.error('Freeze failed:', e);
-  }
-});
-
-ipcMain.on('window:unfreezeTab', (event, wcId) => {
-  const wc = webContents.fromId(wcId);
-  if (!wc || wc.isDestroyed()) return;
-
-  wc.setBackgroundThrottling(false);
-
-  try {
-    wc.debugger.sendCommand('Page.setWebLifecycleState', { state: 'active' });
-    wc.debugger.detach();
-  } catch (e) {
-    console.error('Unfreeze failed:', e);
   }
 });
 
@@ -262,63 +407,11 @@ ipcMain.on('bvDestroy', (_event, tabId) => {
 // --------- Работа с табами ---------- //
 // 1. Создание таба //
 ipcMain.handle('window:bvCreateTab', async (_e, { id, url }) => {
-  // Создаем новую сессию для вкладки
-  const tabSession = session.fromPartition(`persist:tab-${id}`, { cache: false });
-  const t0 = performance.now();
-  const view = createBrowserView({
-    webPreferences: { 
-      contextIsolation: true, 
-      sandbox: true,
-      partition: `persist:tab-${id}`,
-      webSecurity: true,
-      allowRunningInsecureContent: false,
-      nodeIntegration: false,
-      webviewTag: false,
-      backgroundThrottling: false,
-      enableRemoteModule: false,
-      spellcheck: false,
-      plugins: false,
-      session: tabSession,
-    },
-    win,
-  });
-  const t1 = performance.now();
-  console.log(`Создание view: ${t1 - t0} мс`);
-  // Добавляем слушатели
-  view.webContents.on('did-start-loading', () => {
-    win.webContents.send('bvDidStartLoading', id);
-  });
-  
-  view.webContents.on('did-stop-loading', () => {
-    win.webContents.send('bvDidStopLoading', id);
-  });
-  
-  view.webContents.on('ready-to-show', () => {
-    win.webContents.send('bvDomReady', id);
-  });
+  const view = acquireView(id);
+  views.set(id, view);
+  activeTabId = activeTabId ?? id;
+  win.setBrowserView(view);
 
-  // Добавляем обработчики для заголовка и URL
-  view.webContents.on('page-title-updated', (event, title) => {
-    win.webContents.send('tabTitleUpdated', { id, title });
-  });
-
-  view.webContents.on('page-favicon-updated', (event, favicons) => {
-    if (favicons && favicons.length > 0) {
-      // Преобразуем относительный URL в абсолютный
-      const faviconUrl = new URL(favicons[0], view.webContents.getURL()).href;
-      win.webContents.send('tabFaviconUpdated', { id, favicon: faviconUrl });
-    }
-  });
-
-  view.webContents.on('did-navigate', (event, url) => {
-    win.webContents.send('tabUrlUpdated', { id, url });
-  });
-
-  view.webContents.on('did-navigate-in-page', (event, url) => {
-    win.webContents.send('tabUrlUpdated', { id, url });
-  });
-
-  // Устанавливаем размеры
   const { width, height } = win.getContentBounds();
   view.setBounds({
     x: 0,
@@ -327,71 +420,44 @@ ipcMain.handle('window:bvCreateTab', async (_e, { id, url }) => {
     height: Math.floor(height - headerHeight),
   });
 
-  // Сохраняем view в Map
-  views.set(id, view);
-
-  // Если это первая вкладка, делаем её активной
-  if (activeTabId == null) {
-    activeTabId = id;
-    win.setBrowserView(view);
-  }
-
-  // Загружаем контент
   try {
-    if (!url || url.trim() === '') {
-      const newTabPath = join(__dirname, 'dist', 'tab-content.html');
-      if (existsSync(newTabPath)) {
-        const t2 = performance.now();
-        await view.webContents.loadFile(newTabPath);
-        const t3 = performance.now();
-        console.log(`Загрузка файла: ${t3 - t2} мс`);
-      }
-    } else {
+    if (url && url.trim()) {
       await view.webContents.loadURL(url);
     }
-  } catch (error) {
-    console.error('Failed to load content:', error);
+  } catch (err) {
+    console.error('Failed to load URL in pooled view:', err);
   }
 
   return { success: true };
 });
 
 // 2. Смена таба //
-ipcMain.handle('window:bvSwitchTab', async (_e, id) => {
-  if (!views.has(id) || id === activeTabId) return;
-  
-  const newView = views.get(id);
-  const oldView = views.get(activeTabId);
-
-  // Просто переключаем видимость вкладок
-  win.setBrowserView(newView);
+ipcMain.handle('window:bvSwitchTab', (_e, id) => {
+  if (id === activeTabId || !views.has(id)) return;
+  const newV = views.get(id);
+  win.setBrowserView(newV);
   activeTabId = id;
-  win.webContents.send('tabSwitched', activeTabId);
+  win.webContents.send('tabSwitched', id);
 });
 
 // 3. Закрытие таба //
-ipcMain.on('window:closeTab', (_e, id) => {
+ipcMain.on('window:closeTab', async (_e, id) => {
   const view = views.get(id);
   if (!view) return;
-
-  // Уничтожаем view
-  win.removeBrowserView(view);
-  view.webContents.destroy();
   views.delete(id);
+  if (activeTabId === id) activeTabId = null;
 
-  // Если закрыли активную вкладку, переключаемся на другую
-  if (activeTabId === id) {
-    const remaining = Array.from(views.keys());
-    activeTabId = remaining.length ? remaining[0] : null;
-    
-    if (activeTabId) {
-      const nextView = views.get(activeTabId);
-      nextView.webContents.setBackgroundThrottling(false);
-      win.setBrowserView(nextView);
-      win.webContents.send('tabSwitched', activeTabId);
-    }
+  await releaseView(view);
+
+  const next = Array.from(views.keys())[0];
+  if (next) {
+    activeTabId = next;
+    const nv = views.get(next);
+    win.setBrowserView(nv);
+    win.webContents.send('tabSwitched', next);
   }
 });
+
 // ------------------------------- //
 
 // --------- Работа с окнами ---------- //
@@ -456,11 +522,11 @@ ipcMain.on('window:setHeaderHeight', (_event, newHeaderHeight) => {
       width,
       height: Math.floor(windowHeight - newHeaderHeight), // Округляем для избежания проблем с пикселями
     });
-    view.setAutoResize({ 
-      width: true, 
+    view.setAutoResize({
+      width: true,
       height: true,
       horizontal: true,
-      vertical: true
+      vertical: true,
     });
   }
 });
@@ -520,44 +586,14 @@ if (!gotLock) {
     }
   });
 
-  app.whenReady().then(() => {
-    autoUpdater.checkForUpdatesAndNotify();
+  app.whenReady().then(async () => {
     createWindow();
-
-    contextMenu({
-      showInspectElement: isDev,
-    });
+    await initViewPool();
+    autoUpdater.checkForUpdatesAndNotify();
+    contextMenu({ showInspectElement: isDev });
   });
 
   app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') app.quit();
   });
 }
-
-// Добавляем обработчик для получения favicon
-ipcMain.handle('window:getFavicon', async (_e, tabId) => {
-  const view = views.get(tabId);
-  if (!view) return { favicon: null };
-
-  try {
-    const favicon = await view.webContents.executeJavaScript(`
-      (() => {
-        const iconLink = document.querySelector('link[rel="icon"]');
-        if (iconLink && iconLink.href) {
-          return iconLink.href;
-        }
-        return '/favicon.ico';
-      })()
-    `);
-
-    if (favicon) {
-      // Преобразуем относительный URL в абсолютный
-      const absoluteUrl = new URL(favicon, view.webContents.getURL()).href;
-      return { favicon: absoluteUrl };
-    }
-  } catch (error) {
-    console.error('Error getting favicon:', error);
-  }
-
-  return { favicon: null };
-});
