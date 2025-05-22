@@ -3,7 +3,6 @@ app.commandLine.appendSwitch('enable-pinch-zoom');
 app.commandLine.appendSwitch('enable-features', 'PinchZoom');
 
 import { BrowserWindow, ipcMain, dialog, shell, session } from 'electron';
-
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { existsSync, writeFileSync, readFileSync } from 'fs';
@@ -21,6 +20,10 @@ const isDev =
 
 let win;
 let headerHeight = 84.86;
+const DEFAULT_WIDTH = 1200;
+const DEFAULT_HEIGHT = 900;
+const MIN_WIDTH = 800;
+const MIN_HEIGHT = 800;
 
 const views = new Map();
 let activeTabId = null;
@@ -28,6 +31,34 @@ let activeTabId = null;
 const POOL_SIZE = 25;
 const viewPool = [];
 const viewInUse = new Map();
+const faviconCache = new Map();
+let faviconSession;
+
+function setActiveView(view) {
+  const old = getCurrentView();
+  if (old && old !== view) {
+    win.removeBrowserView(old);
+  }
+  win.setBrowserView(view);
+}
+
+function updateViewBounds(view) {
+  const { width, height } = win.getContentBounds();
+  view.setBounds({
+    x: 0,
+    y: Math.floor(headerHeight),
+    width,
+    height: Math.floor(height - headerHeight),
+  });
+}
+
+const debounce = (fn, ms) => {
+  let timer;
+  return () => {
+    clearTimeout(timer);
+    timer = setTimeout(fn, ms);
+  };
+};
 
 function attachViewListeners(view) {
   view.webContents.on('did-start-loading', () =>
@@ -43,43 +74,41 @@ function attachViewListeners(view) {
     win.webContents.send('tabTitleUpdated', { id: view._tabId, title }),
   );
   view.webContents.on('page-favicon-updated', async (_e, favicons) => {
-    console.log('Favicon update event:', { 
-      tabId: view._tabId, 
-      hasFavicons: !!favicons?.length,
-      favicons 
-    });
-    
     if (!favicons?.length) {
-      win.webContents.send('tabFaviconUpdated', {
+      return win.webContents.send('tabFaviconUpdated', {
         id: view._tabId,
         favicon: null,
       });
-      return;
     }
+
+    const cacheKey = `${view._tabId}|${favicons[0]}`;
+    if (faviconCache.has(cacheKey)) {
+      return win.webContents.send('tabFaviconUpdated', {
+        id: view._tabId,
+        favicon: faviconCache.get(cacheKey),
+      });
+    }
+
+    let onHeadersReceivedCallback = (details, callback) => {
+      callback({
+        responseHeaders: {
+          ...details.responseHeaders,
+          'Access-Control-Allow-Origin': ['*'],
+          'Access-Control-Allow-Methods': ['GET'],
+          'Access-Control-Allow-Headers': ['*'],
+        },
+      });
+    };
 
     try {
       const faviconUrl = new URL(favicons[0], view.webContents.getURL()).href;
       console.log('Fetching favicon:', faviconUrl);
-      
-      // Создаем сессию для загрузки фавиконки
-      const faviconSession = session.fromPartition('persist:favicons');
-      
-      // Настраиваем CORS для фавиконок
-      await faviconSession.webRequest.onHeadersReceived((details, callback) => {
-        callback({
-          responseHeaders: {
-            ...details.responseHeaders,
-            'Access-Control-Allow-Origin': ['*'],
-            'Access-Control-Allow-Methods': ['GET'],
-            'Access-Control-Allow-Headers': ['*'],
-          },
-        });
-      });
 
-      // Загружаем фавиконку
+      faviconSession.webRequest.onHeadersReceived(onHeadersReceivedCallback);
+
       const response = await fetch(faviconUrl, {
         headers: {
-          'Accept': 'image/*',
+          Accept: 'image/*',
         },
       });
 
@@ -88,23 +117,30 @@ function attachViewListeners(view) {
       }
 
       const blob = await response.blob();
-      const dataUrl = `data:${blob.type};base64,${Buffer.from(await blob.arrayBuffer()).toString('base64')}`;
-      
-      console.log('Favicon loaded successfully:', { tabId: view._tabId, type: blob.type });
-      
-      // Добавляем небольшую задержку для плавности
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
+      const dataUrl = `data:${blob.type};base64,${Buffer.from(
+        await blob.arrayBuffer(),
+      ).toString('base64')}`;
+      faviconCache.set(cacheKey, dataUrl);
+
+      // await new Promise((resolve) => setTimeout(resolve, 100));
+
       win.webContents.send('tabFaviconUpdated', {
         id: view._tabId,
         favicon: dataUrl,
       });
+
+      faviconCache.set(cacheKey, dataUrl);
     } catch (error) {
       console.error('Error loading favicon:', error);
       win.webContents.send('tabFaviconUpdated', {
         id: view._tabId,
         favicon: null,
       });
+    } finally {
+      faviconSession.webRequest.off(
+        'headersReceived',
+        onHeadersReceivedCallback,
+      );
     }
   });
   view.webContents.on('did-navigate', (_e, url) =>
@@ -154,20 +190,24 @@ async function initViewPool() {
   }
 }
 
-function acquireView(tabId) {
+async function acquireView(tabId) {
   let view = viewPool.find((v) => !viewInUse.get(v));
+
   if (!view) {
-    console.warn('Пул исчерпан — создаём новый BrowserView');
-    view = createBrowserView({
-      webPreferences: {
-        contextIsolation: true,
-        sandbox: true,
-        backgroundThrottling: false,
-      },
-      win,
-    });
-    attachViewListeners(view);
+    if (viewPool.length < POOL_SIZE) {
+      view = await createPooledView(viewPool.length);
+      viewPool.push(view);
+    } else {
+      const lru = viewPool.shift();
+      win.removeBrowserView(lru);
+      viewInUse.delete(lru);
+      await releaseView(lru);
+      attachViewListeners(lru);
+      viewPool.push(lru);
+      view = lru;
+    }
   }
+
   view._tabId = tabId;
   viewInUse.set(view, true);
   return view;
@@ -175,10 +215,14 @@ function acquireView(tabId) {
 
 async function releaseView(view) {
   win.removeBrowserView(view);
-  const tpl = join(__dirname, 'dist', 'tab-content.html');
-  if (existsSync(tpl)) {
-    await view.webContents.loadFile(tpl);
-  }
+  view.webContents.removeAllListeners();
+  // const tpl = join(__dirname, 'dist', 'tab-content.html');
+  // if (existsSync(tpl)) {
+  //   await view.webContents.loadFile(tpl);
+  // }
+  await view.webContents.session.clearStorageData({
+    storages: ['cache', 'cookies', 'filesystem', 'indexDB', 'localStorage'],
+  });
   viewInUse.set(view, false);
 }
 
@@ -192,10 +236,10 @@ function createWindow() {
 
   win = new BrowserWindow({
     frame: false,
-    width: 1200,
-    height: 900,
-    minWidth: 800,
-    minHeight: 800,
+    width: DEFAULT_WIDTH,
+    height: DEFAULT_HEIGHT,
+    minWidth: MIN_WIDTH,
+    minHeight: MIN_HEIGHT,
     transparent: false,
     backgroundColor: '#FFFFFF',
     show: false,
@@ -212,6 +256,7 @@ function createWindow() {
       experimentalFeatures: false,
       enableWebGL: true,
       backgroundThrottling: false,
+      hardwareAcceleration: true,
       enableBlinkFeatures: [
         'PictureInPicture',
         'FileSystemAccess',
@@ -234,21 +279,22 @@ function createWindow() {
     },
   });
 
-  win.setMaxListeners(50);
+  win.setMaxListeners(10);
   win.once('ready-to-show', () => {
     win.show();
   });
 
-  // win.webContents.on('before-input-event', (event, input) => {
-  //   if (
-  //     input.type === 'keyDown' &&
-  //     input.control &&
-  //     input.shift &&
-  //     input.key === 'i'
-  //   ) {
-  //     event.preventDefault();
-  //   }
-  // });
+  win.webContents.on('before-input-event', (event, input) => {
+    if (
+      (input.type === 'keyDown' &&
+        input.control &&
+        input.shift &&
+        input.key === 'i',
+      input.code === 'keyI')
+    ) {
+      event.preventDefault();
+    }
+  });
 
   const resizeHandler = () => {
     const v = getCurrentView();
@@ -261,9 +307,22 @@ function createWindow() {
       height: Math.floor(height - headerHeight),
     });
   };
-  win.on('resize', resizeHandler);
-  win.on('enter-full-screen', resizeHandler);
-  win.on('leave-full-screen', resizeHandler);
+
+  function resizeAll() {
+    for (const v of views.values()) {
+      updateViewBounds(v);
+    }
+  }
+
+  const debouncedResizeAll = debounce(resizeAll, 20);
+
+  [
+    'resize',
+    'enter-full-screen',
+    'leave-full-screen',
+    'maximize',
+    'unmaximize',
+  ].forEach((evt) => win.on(evt, debouncedResizeAll));
 
   win.on('focus', () =>
     getCurrentView()?.webContents.setBackgroundThrottling(false),
@@ -272,71 +331,18 @@ function createWindow() {
     getCurrentView()?.webContents.setBackgroundThrottling(true),
   );
 
-  win.on('focus', () => {
-    const view = getCurrentView();
-    if (view) {
-      view.webContents.setBackgroundThrottling(false);
-    }
-  });
-
-  win.on('blur', () => {
-    const view = getCurrentView();
-    if (view) {
-      view.webContents.setBackgroundThrottling(true);
-    }
-  });
-
   win.webContents.on('did-finish-load', () => {
     win.webContents.setZoomFactor(1);
     win.webContents.setVisualZoomLevelLimits(1, 3);
   });
 
-  win.on('maximize', () => {
-    win.webContents.send('window:isMaximized', true);
-  });
+  // win.on('maximize', () => {
+  //   win.webContents.send('window:isMaximized', true);
+  // });
 
-  win.on('unmaximize', () => {
-    win.webContents.send('window:isMaximized', false);
-  });
-
-  win.on('resize', () => {
-    const view = getCurrentView();
-    if (view) {
-      const { width, height } = win.getContentBounds();
-      view.setBounds({
-        x: 0,
-        y: Math.floor(headerHeight),
-        width,
-        height: Math.floor(height - headerHeight),
-      });
-    }
-  });
-
-  win.on('enter-full-screen', () => {
-    const view = getCurrentView();
-    if (view) {
-      const { width, height } = win.getContentBounds();
-      view.setBounds({
-        x: 0,
-        y: Math.floor(headerHeight),
-        width,
-        height: Math.floor(height - headerHeight),
-      });
-    }
-  });
-
-  win.on('leave-full-screen', () => {
-    const view = getCurrentView();
-    if (view) {
-      const { width, height } = win.getContentBounds();
-      view.setBounds({
-        x: 0,
-        y: Math.floor(headerHeight),
-        width,
-        height: Math.floor(height - headerHeight),
-      });
-    }
-  });
+  // win.on('unmaximize', () => {
+  //   win.webContents.send('window:isMaximized', false);
+  // });
 
   win.on('closed', () => {
     win = null;
@@ -373,16 +379,18 @@ ipcMain.handle('window:bvLoadUrl', async (_e, url) => {
   if (!view) return { success: false, error: 'View for active tab not found' };
 
   try {
-    // Если это локальный файл из public директории
     if (url.startsWith('file://')) {
       const filePath = url.replace('file://', '');
+      const normalized = path.normalize(filePath);
+      if (!normalized.startsWith(path.resolve(__dirname, 'dist'))) {
+        return { success: false, error: 'Access denied' };
+      }
       const publicPath = join(__dirname, 'dist', filePath);
       if (existsSync(publicPath)) {
         await view.webContents.loadFile(publicPath);
         return { success: true };
       }
     }
-    // Для обычных URL
     await view.webContents.loadURL(url);
     return { success: true };
   } catch (error) {
@@ -395,6 +403,7 @@ ipcMain.on('bvDestroy', (_event, tabId) => {
   if (view) {
     win.removeBrowserView(view);
     view.webContents.destroy();
+    view.webContents.removeAllListeners();
     views.delete(tabId);
 
     if (activeTabId === tabId) {
@@ -407,18 +416,15 @@ ipcMain.on('bvDestroy', (_event, tabId) => {
 // --------- Работа с табами ---------- //
 // 1. Создание таба //
 ipcMain.handle('window:bvCreateTab', async (_e, { id, url }) => {
-  const view = acquireView(id);
+  if (views.has(id)) {
+    return { success: false, error: 'Tab already exists' };
+  }
+  const view = await acquireView(id);
   views.set(id, view);
-  activeTabId = activeTabId ?? id;
-  win.setBrowserView(view);
 
-  const { width, height } = win.getContentBounds();
-  view.setBounds({
-    x: 0,
-    y: Math.floor(headerHeight),
-    width,
-    height: Math.floor(height - headerHeight),
-  });
+  activeTabId = activeTabId ?? id;
+  setActiveView(view);
+  updateViewBounds(view);
 
   try {
     if (url && url.trim()) {
@@ -435,7 +441,8 @@ ipcMain.handle('window:bvCreateTab', async (_e, { id, url }) => {
 ipcMain.handle('window:bvSwitchTab', (_e, id) => {
   if (id === activeTabId || !views.has(id)) return;
   const newV = views.get(id);
-  win.setBrowserView(newV);
+  setActiveView(newV);
+  updateViewBounds(newV);
   activeTabId = id;
   win.webContents.send('tabSwitched', id);
 });
@@ -453,7 +460,8 @@ ipcMain.on('window:closeTab', async (_e, id) => {
   if (next) {
     activeTabId = next;
     const nv = views.get(next);
-    win.setBrowserView(nv);
+    setActiveView(nv);
+    updateViewBounds(nv);
     win.webContents.send('tabSwitched', next);
   }
 });
@@ -587,10 +595,13 @@ if (!gotLock) {
   });
 
   app.whenReady().then(async () => {
+    autoUpdater.checkForUpdatesAndNotify()
+    // setTimeout(() => autoUpdater.checkForUpdatesAndNotify(), 2000);
     createWindow();
-    await initViewPool();
-    autoUpdater.checkForUpdatesAndNotify();
-    contextMenu({ showInspectElement: isDev });
+    faviconSession = session.defaultSession;
+    // setTimeout(() => initViewPool(), 1000);
+    initViewPool()
+    // contextMenu({ showInspectElement: isDev });
   });
 
   app.on('window-all-closed', () => {
