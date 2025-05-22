@@ -1,49 +1,40 @@
 import { useState, useEffect } from 'react';
 import defaultFavicon from '../assets/default-favicon.svg';
 
+// Кэш для favicon
+const faviconCache = new Map();
+
 export function useFavicon(tabs, activeTab) {
   const [favicons, setFavicons] = useState({});
 
   useEffect(() => {
     const activeTabData = tabs.find((tab) => tab.id === activeTab);
-    if (!activeTabData || !activeTabData.webviewRef?.current) return;
+    if (!activeTabData) return;
 
-    const webview = activeTabData.webviewRef.current;
-
-    const getFavicon = (tabId) => {
-      webview
-        .executeJavaScript(
-          `
-        (() => {
-          const iconLink = document.querySelector('link[rel="icon"]');
-          const shortcutIconLink = document.querySelector('link[rel="shortcut icon"]');
-          return iconLink ? iconLink.href : (shortcutIconLink ? shortcutIconLink.href : null);
-        })()
-      `,
-        )
-        .then((iconUrl) => {
+    const getFavicon = async (tabId) => {
+      try {
+        const result = await window.api.getFavicon(tabId);
+        if (result && result.favicon) {
           setFavicons((prev) => ({
             ...prev,
-            [tabId]: iconUrl || defaultFavicon,
+            [tabId]: result.favicon,
           }));
-        })
-        .catch(() => {
+        } else {
           setFavicons((prev) => ({
             ...prev,
             [tabId]: defaultFavicon,
           }));
-        });
+        }
+      } catch (error) {
+        console.error('Error getting favicon:', error);
+        setFavicons((prev) => ({
+          ...prev,
+          [tabId]: defaultFavicon,
+        }));
+      }
     };
 
-    const handleDomReady = () => {
-      getFavicon(activeTab);
-    };
-
-    webview.addEventListener('dom-ready', handleDomReady);
-
-    return () => {
-      webview.removeEventListener('dom-ready', handleDomReady);
-    };
+    getFavicon(activeTab);
   }, [tabs, activeTab]);
 
   return favicons;

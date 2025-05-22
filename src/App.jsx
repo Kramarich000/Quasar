@@ -1,215 +1,187 @@
 import { useState, useEffect, createRef } from 'react';
 import TabBar from './components/TabBar';
 import ToolBar from './components/ToolBar';
-import Tab from './components/Tab';
+// import Tab from './components/Tab';
 import { useFavicon } from './hooks/useFavicon';
 import './App.css';
+import './styles/global.css';
 
 export default function App() {
-  const MAX_TABS = 25;
+  const MAX_TABS = 10;
 
-  // tabs: { id, url, title, webviewRef }
-
-  const [tabs, setTabs] = useState([
-    {
-      id: 1,
-      url: '',
-      title: 'Новая вкладка',
-      webviewRef: createRef(),
-    },
-  ]);
-  const [activeTab, setActiveTab] = useState(1);
-  const [isLoading, setIsLoading] = useState(false);
-
-  const [isSecure, setIsSecure] = useState(false);
-  const favicons = useFavicon(tabs, activeTab);
-  useEffect(() => {
-    const currentUrl = tabs.find((tab) => tab.id === activeTab)?.url;
-
-    if (!currentUrl) {
-      setIsSecure(true);
-      return;
+  const generateId = () => {
+    if (crypto && crypto.randomUUID) {
+      return crypto.randomUUID();
+    } else {
+      return `${Date.now()}-${Math.floor(Math.random() * 100000)}`;
     }
+  };
 
-    setIsSecure(currentUrl.startsWith('https://'));
-  }, [activeTab, tabs]);
+  const [tabs, setTabs] = useState([]);
+  const [activeTab, setActiveTab] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSecure, setIsSecure] = useState(true);
+  const favicons = useFavicon(tabs, activeTab);
 
   useEffect(() => {
-    const initTabUrlHandler = (url) => {
-      if (url) {
-        const id = Date.now();
-        setTabs([{ id, url, title: url, webviewRef: createRef() }]);
-        setActiveTab(id);
+    const header = document.querySelector('.header-bar');
+    if (header) {
+      const height = header.offsetHeight;
+      window.api.setHeaderHeight(height);
+    }
+  }, []);
+
+  useEffect(() => {
+    const firstId = generateId();
+    const createFirstTab = async () => {
+      try {
+        const result = await window.api.bvCreateTab({ id: firstId, url: '' });
+        if (result.success) {
+          setTabs([{ id: firstId, url: '', title: 'Новая вкладка' }]);
+          setActiveTab(firstId);
+        } else {
+          console.error('Failed to create first tab:', result.error);
+        }
+      } catch (error) {
+        console.error('Error creating first tab:', error);
       }
     };
+    createFirstTab();
+  }, []);
 
-    window.api.on('init-tab-url', initTabUrlHandler);
+  useEffect(() => {
+    const onSwitched = (newId) => {
+      setActiveTab(newId);
+    };
+    const onTitleUpdated = ({ id, title }) => {
+      setTabs((t) => t.map((tab) => (tab.id === id ? { ...tab, title } : tab)));
+    };
+    const onFaviconUpdated = ({ id, favicon }) => {
+      setFavicons((prev) => ({ ...prev, [id]: favicon }));
+    };
+    const onUrlUpdated = ({ id, url }) => {
+      setTabs((t) => t.map((tab) => (tab.id === id ? { ...tab, url } : tab)));
+    };
+    const onLoadStart = () => setIsLoading(true);
+    const onLoadStop = () => setIsLoading(false);
+
+    window.api.on('tabSwitched', onSwitched);
+    window.api.on('tabTitleUpdated', onTitleUpdated);
+    window.api.on('tabFaviconUpdated', onFaviconUpdated);
+    window.api.on('tabUrlUpdated', onUrlUpdated);
+    window.api.on('bvDidStartLoading', onLoadStart);
+    window.api.on('bvDidStopLoading', onLoadStop);
 
     return () => {
-      window.api.removeAllListeners('init-tab-url');
+      window.api.off('tabSwitched', onSwitched);
+      window.api.off('tabTitleUpdated', onTitleUpdated);
+      window.api.off('tabFaviconUpdated', onFaviconUpdated);
+      window.api.off('tabUrlUpdated', onUrlUpdated);
+      window.api.off('bvDidStartLoading', onLoadStart);
+      window.api.off('bvDidStopLoading', onLoadStop);
     };
   }, []);
+
   useEffect(() => {
-    const activeTabData = tabs.find((tab) => tab.id === activeTab);
-    if (!activeTabData) return;
+    const currentUrl = tabs.find((t) => t.id === activeTab)?.url || '';
+    let secure = false;
 
-    const webview = activeTabData.webviewRef.current;
-    if (!webview) return;
-
-    const handleNavigation = () => {
-      const newUrl = webview.getURL();
-      setTabs((prevTabs) =>
-        prevTabs.map((tab) =>
-          tab.id === activeTab ? { ...tab, url: newUrl } : tab,
-        ),
-      );
-      setIsSecure(webview.getURL().startsWith('https://'));
-    };
-
-    const handleTitleUpdated = () => {
-      const title = webview.getTitle();
-      setTabs((prevTabs) =>
-        prevTabs.map((tab) => (tab.id === activeTab ? { ...tab, title } : tab)),
-      );
-    };
-
-    const handleNewWindow = () => {
-      window.api.send('open-external-url', url);
-    };
-
-    const handleDidStartLoading = () => setIsLoading(true);
-    const handleDidStopLoading = () => setIsLoading(false);
-
-    const handleWillNavigate = (event) => {
-      const chromeUA =
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
-      webview.setUserAgent(chromeUA);
-      const headers = {
-        'User-Agent': chromeUA,
-        'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
-        'Accept-Encoding': 'gzip, deflate, br',
-        Accept:
-          'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-        'Upgrade-Insecure-Requests': '1',
-      };
-
-      event.preventDefault();
-
-      webview.loadURL(event.url, {
-        extraHeaders: Object.entries(headers)
-          .map(([k, v]) => `${k}: ${v}`)
-          .join('\n'),
-      });
-    };
-
-    webview.addEventListener('did-navigate', handleNavigation);
-    webview.addEventListener('did-navigate-in-page', handleNavigation);
-    webview.addEventListener('page-title-updated', handleTitleUpdated);
-    webview.addEventListener('did-start-loading', handleDidStartLoading);
-    webview.addEventListener('did-stop-loading', handleDidStopLoading);
-    webview.addEventListener('new-window', handleNewWindow);
-    webview.addEventListener('will-navigate', handleWillNavigate);
-
-    return () => {
-      webview.removeEventListener('did-navigate', handleNavigation);
-      webview.removeEventListener('did-navigate-in-page', handleNavigation);
-      webview.removeEventListener('page-title-updated', handleTitleUpdated);
-      webview.removeEventListener('did-start-loading', handleDidStartLoading);
-      webview.removeEventListener('did-stop-loading', handleDidStopLoading);
-      webview.removeEventListener('new-window', handleNewWindow);
-      webview.removeEventListener('will-navigate', handleWillNavigate);
-    };
-  }, [activeTab, tabs]);
-
-  const addTab = () => {
-    if (tabs.length >= MAX_TABS) return;
-    const id = Date.now();
-    setTabs((t) => [
-      ...t,
-      {
-        id,
-        url: '',
-        title: 'Новая вкладка',
-        webviewRef: createRef(),
-      },
-    ]);
-    setActiveTab(id);
-  };
-
-  const changeUrl = (id, newUrl) => {
-    setTabs((prevTabs) =>
-      prevTabs.map((tab) =>
-        tab.id === id
-          ? {
-              ...tab,
-              url: newUrl,
-              title: newUrl === 'welcome' ? 'Добро пожаловать' : newUrl,
-            }
-          : tab,
-      ),
-    );
-  };
-
-  const closeTab = (idToClose) => {
-    setTabs((prevTabs) => {
-      if (prevTabs.length === 1) return prevTabs;
-
-      const filtered = prevTabs.filter((tab) => tab.id !== idToClose);
-
-      if (activeTab === idToClose) {
-        const idx = prevTabs.findIndex((tab) => tab.id === idToClose);
-        const newActiveTab =
-          prevTabs[idx - 1] || prevTabs[idx + 1] || filtered[0];
-        setActiveTab(newActiveTab.id);
+    try {
+      if (!currentUrl) {
+        secure = false;
+      } else {
+        const urlObj = new URL(currentUrl);
+        secure = urlObj.protocol === 'https:';
       }
+    } catch {
+      secure = false;
+    }
 
-      return filtered;
-    });
+    setIsSecure(secure);
+  }, [tabs, activeTab]);
+
+  const addTab = async (isIncognito = false) => {
+    if (tabs.length >= MAX_TABS) return;
+    
+    const id = generateId();
+    try {
+      const result = await window.api.bvCreateTab({ id, url: '' });
+      if (result.success) {
+        await window.api.bvCreateTab({ id, url: '' });
+        setTabs((prev) => [...prev, { id, url: '', title: 'Новая вкладка' }]);
+        await selectTab(id);
+      } else {
+        console.error('Failed to create tab:', result.error);
+      }
+    } catch (error) {
+      console.error('Error creating tab:', error);
+    }
   };
 
-  // useEffect(() => {
-  //   const activeTabData = tabs.find((tab) => tab.id === activeTab);
-  //   if (!activeTabData) return;
+  const selectTab = async (id) => {
+    if (id === activeTab) return;
+    
+    try {
+      await window.api.bvSwitchTab(id);
+      setActiveTab(id);
+    } catch (error) {
+      console.error('Error switching tab:', error);
+    }
+  };
 
-  //   const webview = activeTabData.webviewRef.current;
-  //   if (!webview) return;
+  const changeUrl = async (id, newUrl) => {
+    try {
+      setTabs((t) =>
+        t.map((tab) => (tab.id === id ? { ...tab, url: newUrl } : tab)),
+      );
+      
+      if (id === activeTab) {
+        await window.api.bvLoadUrl(newUrl);
+      }
+    } catch (error) {
+      console.error('Error changing URL:', error);
+    }
+  };
 
-  //   if (!isLoading && webview.src !== activeTabData.url) {
-  //     webview.src = activeTabData.url;
-  //   }
-  // }, [activeTab, tabs, isLoading]);
+  const closeTab = async (id) => {
+    if (tabs.length === 1) return;
+    
+    try {
+      await window.api.bvCloseTab(id);
+      
+      setTabs((prev) => prev.filter((tab) => tab.id !== id));
+      
+      if (activeTab === id) {
+        const remaining = tabs.filter((tab) => tab.id !== id);
+        if (remaining.length > 0) {
+          await selectTab(remaining[0].id);
+        }
+      }
+    } catch (error) {
+      console.error('Error closing tab:', error);
+    }
+  };
 
   return (
-    <div className="flex flex-col h-full fixed w-full">
-      <TabBar
-        tabs={tabs}
-        activeTab={activeTab}
-        onAddTab={addTab}
-        onCloseTab={closeTab}
-        favicons={favicons}
-        isSecure={isSecure}
-        onSelectTab={setActiveTab}
-      />
+    <div className="flex flex-col !h-full !w-full">
+      <div className="header-bar">
+        <TabBar
+          tabs={tabs}
+          activeTab={activeTab}
+          onAddTab={addTab}
+          onCloseTab={closeTab}
+          onSelectTab={selectTab}
+          favicons={favicons}
+          isSecure={isSecure}
+        />
 
-      <ToolBar
-        // key={activeTab.id}
-        key={activeTab}
-        webviewRef={tabs.find((tab) => tab.id === activeTab)?.webviewRef}
-        url={tabs.find((tab) => tab.id === activeTab)?.url}
-        onChangeUrl={(newUrl) => changeUrl(activeTab, newUrl)}
-      />
-
-      <div className="flex-1 flex relative">
-        {tabs.map((tab) => (
-          <Tab
-            key={tab.id}
-            url={tab.url}
-            isActive={tab.id === activeTab}
-            webviewRef={tab.webviewRef}
-            onChangeUrl={(newUrl) => changeUrl(activeTab, newUrl)}
-          />
-        ))}
+        <ToolBar
+          key={activeTab}
+          url={tabs.find((t) => t.id === activeTab)?.url || ''}
+          onChangeUrl={(url) => changeUrl(activeTab, url)}
+        />
       </div>
     </div>
   );
 }
+

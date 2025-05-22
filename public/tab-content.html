@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Новая вкладка</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M50 100C77.6142 100 100 77.6142 100 50C100 22.3858 77.6142 0 50 0C22.3858 0 0 22.3858 0 50C0 77.6142 22.3858 100 50 100Z" fill="url(#paint0_linear)"/>
+                <path d="M50.4217 86.0738C52.5863 87.0822 55.5481 87.589 59.3124 87.589C60.3207 87.589 61.5139 87.5045 62.8918 87.3356C64.2645 87.1666 65.3468 86.9713 66.1335 86.7443V77.5632C64.3384 78.012 62.5698 78.2337 60.8276 78.2337C59.1962 78.2337 58.0717 77.8853 57.454 77.1831C56.8363 76.4809 56.5301 75.2297 56.5301 73.4347C70.2356 71.4654 77.0884 62.3953 77.0884 46.2189C77.0884 36.3938 74.8235 29.2295 70.3043 24.7366C65.785 20.2438 59.0273 18 50.0416 18C40.9978 18 34.2295 20.2438 29.7366 24.7366C25.2438 29.2295 23 36.3938 23 46.2189C23 62.7331 30.159 71.8614 44.4823 73.6036C44.5403 76.8611 44.9996 79.5008 45.8708 81.5229C46.7419 83.5449 48.2571 85.0601 50.4217 86.0738ZM60.0251 58.4779C57.9186 61.0912 54.5925 62.3953 50.0416 62.3953C45.4378 62.3953 42.0801 61.0912 39.9736 58.4779C37.8671 55.8698 36.8164 51.7835 36.8164 46.2189C36.8164 40.2108 37.8565 35.945 39.9313 33.4161C42.0115 30.8872 45.3798 29.6254 50.0416 29.6254C54.6506 29.6254 57.9872 30.8872 60.0673 33.4161C62.1474 35.945 63.1875 40.2108 63.1875 46.2189C63.1875 51.7835 62.1316 55.8698 60.0251 58.4779Z" fill="white"/>
+                <defs>
+                    <linearGradient id="paint0_linear" x1="0" y1="100" x2="100" y2="0" gradientUnits="userSpaceOnUse">
+                        <stop stop-color="#27EAFF"/>
+                        <stop offset="1" stop-color="#0028FF"/>
+                    </linearGradient>
+                </defs>
+            </svg>
+            <h1 class="logo-text">Quasar</h1>
+        </div>
+
+        <div class="search-container">
+            <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>     
+            </svg>
+            <input type="text" class="search-input" placeholder="Введите URL или поисковый запрос" id="searchInput">
+            <div class="suggestions-container" id="suggestionsContainer"></div>
+        </div>
+
+        <div class="quick-links">
+            <a href="https://www.google.com" class="quick-link">
+                <svg class="quick-link-icon" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"/>
+                </svg>
+                <span class="quick-link-text">Google</span>
+            </a>
+            <a href="https://www.youtube.com" class="quick-link">
+                <svg class="quick-link-icon" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                </svg>
+                <span class="quick-link-text">YouTube</span>
+            </a>
+            <a href="https://www.github.com" class="quick-link">
+                <svg class="quick-link-icon" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/>
+                </svg>
+                <span class="quick-link-text">GitHub</span>
+            </a>
+            <a href="https://www.wikipedia.org" class="quick-link">
+                <svg class="quick-link-icon" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm0 2c5.523 0 10 4.477 10 10s-4.477 10-10 10S2 17.523 2 12 6.477 2 12 2zm0 2c-4.411 0-8 3.589-8 8s3.589 8 8 8 8-3.589 8-8-3.589-8-8-8zm0 2c3.309 0 6 2.691 6 6s-2.691 6-6 6-6-2.691-6-6 2.691-6 6-6z"/>
+                </svg>
+                <span class="quick-link-text">Wikipedia</span>
+            </a>
+            <a href="#" class="quick-link" id="addCustomSite">
+                <svg class="quick-link-icon" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/>
+                </svg>
+                <span class="quick-link-text">Добавить сайт</span>
+            </a>
+        </div>
+
+        <div class="search-engines">
+            Популярные поисковые системы: 
+            <a href="https://www.google.com">Google</a>
+            <a href="https://www.bing.com">Bing</a>
+            <a href="https://www.yandex.ru">Yandex</a>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div class="modal-overlay" id="addSiteModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 class="modal-title">Добавить новый сайт</h2>
+            </div>
+            <form class="modal-form" id="addSiteForm">
+                <div class="form-group">
+                    <label class="form-label" for="siteName">Название сайта</label>
+                    <input type="text" class="form-input" id="siteName" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="siteUrl">URL сайта</label>
+                    <input type="url" class="form-input" id="siteUrl" placeholder="https://example.com" required>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="modal-button secondary" id="cancelAddSite">Отмена</button>
+                    <button type="submit" class="modal-button primary">Добавить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html> 

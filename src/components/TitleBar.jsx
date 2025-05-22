@@ -1,7 +1,18 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function TitleBar() {
   const [isMaximized, setIsMaximized] = useState(false);
+
+  useEffect(() => {
+    const handleMaximizeChange = (maximized) => {
+      setIsMaximized(maximized);
+    };
+    window.api.on('window:isMaximized', handleMaximizeChange);
+
+    return () => {
+      window.api.off('window:isMaximized', handleMaximizeChange);
+    };
+  }, []);
 
   const handleMinimize = () => window.api.minimize();
   const handleMaximize = async () => {
@@ -20,7 +31,7 @@ export default function TitleBar() {
         ─
       </button>
       <button
-        title={isMaximized ? 'Оконный режим' : 'Полноэкранный режим'}
+        title={isMaximized ? 'Восстановить' : 'Развернуть'}
         onClick={handleMaximize}
         className="px-2 py-1 text-gray-400 !outline-none hover:!text-gray-100 hover:!bg-gray-500 !rounded-none !transition-all !border-none !bg-transparent"
       >

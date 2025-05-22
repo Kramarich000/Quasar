@@ -1,14 +1,17 @@
+import { app } from 'electron';
+app.commandLine.appendSwitch('enable-pinch-zoom');
+app.commandLine.appendSwitch('enable-features', 'PinchZoom');
+
 import {
-  app,
   BrowserWindow,
-  Menu,
-  screen,
   ipcMain,
-  session,
   dialog,
   shell,
+  BrowserView,
   webContents,
+  session,
 } from 'electron';
+
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { existsSync, writeFileSync, readFileSync } from 'fs';
@@ -16,6 +19,7 @@ import pkg from 'electron-updater';
 import path from 'path';
 const { autoUpdater } = pkg;
 import contextMenu from 'electron-context-menu';
+import createBrowserView from './config/createBrowserView.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -25,323 +29,151 @@ const isDev =
   !existsSync(join(__dirname, 'dist', 'index.html'));
 
 let win;
-const incognitoWindows = new Set();
-const detachedWindows = new Set();
+let headerHeight = 84.86;
+
+const views = new Map();
+let activeTabId = null;
+
+function getCurrentView() {
+  if (!activeTabId) return null;
+  return views.get(activeTabId) || null;
+}
 
 function createWindow() {
   // const { width, height } = screen.getPrimaryDisplay().workAreaSize;
 
   win = new BrowserWindow({
     frame: false,
-    titleBarStyle: 'hidden',
-    // width,
-    // height,
     width: 1200,
     height: 900,
-    defaultFontSize: 16,
     minWidth: 800,
     minHeight: 800,
     transparent: false,
-    zoomFactor: 1.0,
+    backgroundColor: '#FFFFFF',
+    show: false,
     webPreferences: {
       partition: 'persist:browser',
       preload: join(__dirname, 'preload.js'),
       contextIsolation: true,
+      devTools: false,
       nodeIntegration: false,
-      webviewTag: true,
+      webviewTag: false,
       sandbox: true,
-      // experimentalFeatures: true,
       offscreen: false,
-      //plugins: true,
       scrollBounce: true,
-      experimentalFeatures: true,
+      experimentalFeatures: false,
       enableWebGL: true,
       backgroundThrottling: false,
-      zoomable: true,
-      enableBlinkFeatures: 'PictureInPicture,FileSystemAccess',
+      enableBlinkFeatures: [
+        'PictureInPicture',
+        'FileSystemAccess',
+        'MediaCapabilities',
+        'WebCodecs',
+        'PinchZoom',
+      ].join(','),
       enableAccelerated2dCanvas: true,
       webSecurity: true,
-      enableBlinkFeatures: 'MediaCapabilities,WebCodecs',
       allowRunningInsecureContent: false,
       disableHtmlFullscreenWindowResize: true,
+      enableAcceleratedLayers: true,
+      enableAcceleratedVideo: true,
+      enableAcceleratedVideoDecode: true,
+      enableAcceleratedVideoEncode: true,
+      enableAcceleratedCompositing: true,
+      spellcheck: false,
+      plugins: false,
+      cache: true,
     },
+  });
+
+  win.setMaxListeners(20);
+
+  // Запрещаем открытие DevTools для главного окна
+  win.webContents.on('before-input-event', (event, input) => {
+    if (input.type === 'keyDown' && input.control && input.shift && input.key === 'i') {
+      event.preventDefault();
+    }
+  });
+
+  win.once('ready-to-show', () => {
+    win.show();
+  });
+
+  win.on('focus', () => {
+    const view = getCurrentView();
+    if (view) {
+      view.webContents.setBackgroundThrottling(false);
+    }
+  });
+
+  win.on('blur', () => {
+    const view = getCurrentView();
+    if (view) {
+      view.webContents.setBackgroundThrottling(true);
+    }
+  });
+
+  win.webContents.on('did-finish-load', () => {
+    win.webContents.setZoomFactor(1);
+    win.webContents.setVisualZoomLevelLimits(1, 3);
+  });
+
+  win.on('maximize', () => {
+    win.webContents.send('window:isMaximized', true);
+  });
+
+  win.on('unmaximize', () => {
+    win.webContents.send('window:isMaximized', false);
+  });
+
+  win.on('resize', () => {
+    const view = getCurrentView();
+    if (view) {
+      const { width, height } = win.getContentBounds();
+      view.setBounds({
+        x: 0,
+        y: Math.floor(headerHeight),
+        width,
+        height: Math.floor(height - headerHeight),
+      });
+    }
+  });
+
+  win.on('enter-full-screen', () => {
+    const view = getCurrentView();
+    if (view) {
+      const { width, height } = win.getContentBounds();
+      view.setBounds({
+        x: 0,
+        y: Math.floor(headerHeight),
+        width,
+        height: Math.floor(height - headerHeight),
+      });
+    }
+  });
+
+  win.on('leave-full-screen', () => {
+    const view = getCurrentView();
+    if (view) {
+      const { width, height } = win.getContentBounds();
+      view.setBounds({
+        x: 0,
+        y: Math.floor(headerHeight),
+        width,
+        height: Math.floor(height - headerHeight),
+      });
+    }
   });
 
   win.on('closed', () => {
     win = null;
   });
-
-  win.webContents.setZoomLevel(0);
-
-  win.webContents.on('before-input-event', (event, input) => {
-    const zoomStep = 0.25;
-    const currentZoom = win.webContents.getZoomLevel();
-
-    const minZoom = -1.5;
-    const maxZoom = 1.5;
-
-    if (input.type === 'keyDown' && input.control) {
-      if (['+', '=', 'Add'].includes(input.key)) {
-        if (currentZoom + zoomStep <= maxZoom) {
-          win.webContents.setZoomLevel(currentZoom + zoomStep);
-        }
-        event.preventDefault();
-      } else if (['-', 'Subtract'].includes(input.key)) {
-        if (currentZoom - zoomStep >= minZoom) {
-          win.webContents.setZoomLevel(currentZoom - zoomStep);
-        }
-        event.preventDefault();
-      } else if (['0', 'Insert'].includes(input.key)) {
-        win.webContents.setZoomLevel(0);
-        event.preventDefault();
-      }
-    }
-
-    if (
-      input.type === 'mouseWheel' &&
-      input.control &&
-      typeof input.deltaY === 'number'
-    ) {
-      const direction = input.deltaY > 0 ? -1 : 1;
-      const newZoom = currentZoom + direction * zoomStep;
-      if (newZoom >= minZoom && newZoom <= maxZoom) {
-        win.webContents.setZoomLevel(newZoom);
-      }
-      event.preventDefault();
-    }
-
-    if (
-      input.type === 'mouseDown' &&
-      input.control &&
-      input.button === 'left'
-    ) {
-      if (currentZoom + zoomStep <= maxZoom) {
-        win.webContents.setZoomLevel(currentZoom + zoomStep);
-      }
-      event.preventDefault();
-    }
-  });
-
-  // win.webContents.openDevTools();
-
-  win.webContents.on('zoom-changed', (event, zoomDirection) => {
-    const currentLevel = win.webContents.getZoomLevel();
-
-    const minLevel = -3;
-    const maxLevel = 5;
-
-    if (zoomDirection === 'in' && currentLevel < maxLevel) {
-      win.webContents.setZoomLevel(currentLevel + 1);
-    } else if (zoomDirection === 'out' && currentLevel > minLevel) {
-      win.webContents.setZoomLevel(currentLevel - 1);
-    }
-
-    event.preventDefault();
-  });
-
-  win.webContents.on('did-navigate', (event, url) => {
-    const isSecure = url.startsWith('https://');
-    win.webContents.send('security-status', isSecure);
-  });
-
-  win.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('https://trusted-site.com')) {
-      return { action: 'allow' };
-    }
-    require('electron').shell.openExternal(url);
-    return { action: 'deny' };
-  });
-
-  win.webContents.setVisualZoomLevelLimits(1, 3);
-
-  const isMac = process.platform === 'darwin';
-  const menuTemplate = [
-    ...(isMac
-      ? [
-          {
-            label: app.name,
-            submenu: [
-              { role: 'about', label: `О программе ${app.name}` },
-              { type: 'separator' },
-              { role: 'services', label: 'Службы' },
-              { type: 'separator' },
-              { role: 'hide', label: 'Скрыть' },
-              { role: 'hideOthers', label: 'Скрыть другие' },
-              { role: 'unhide', label: 'Показать всё' },
-              { type: 'separator' },
-              { role: 'quit', label: 'Выйти', accelerator: 'Command+Q' },
-            ],
-          },
-        ]
-      : []),
-
-    {
-      label: 'Файл',
-      submenu: [
-        isMac
-          ? { role: 'close', label: 'Закрыть окно', accelerator: 'Command+W' }
-          : { role: 'quit', label: 'Выйти', accelerator: 'Alt+F4' },
-      ],
-    },
-
-    {
-      label: 'Правка',
-      submenu: [
-        { role: 'undo', label: 'Отменить', accelerator: 'CmdOrCtrl+Z' },
-        { role: 'redo', label: 'Вернуть', accelerator: 'CmdOrCtrl+Y' },
-        { type: 'separator' },
-        { role: 'cut', label: 'Вырезать', accelerator: 'CmdOrCtrl+X' },
-        { role: 'copy', label: 'Копировать', accelerator: 'CmdOrCtrl+C' },
-        { role: 'paste', label: 'Вставить', accelerator: 'CmdOrCtrl+V' },
-        {
-          role: 'pasteAndMatchStyle',
-          label: 'Вставить со стилем',
-          accelerator: 'Shift+CmdOrCtrl+V',
-        },
-        { role: 'delete', label: 'Удалить' },
-        {
-          role: 'selectAll',
-          label: 'Выделить всё',
-          accelerator: 'CmdOrCtrl+A',
-        },
-      ],
-    },
-
-    {
-      label: 'Вид',
-      submenu: [
-        { role: 'reload', label: 'Перезагрузить', accelerator: 'CmdOrCtrl+R' },
-        {
-          role: 'forceReload',
-          label: 'Перезагрузить без кеша',
-          accelerator: 'Shift+CmdOrCtrl+R',
-        },
-        { role: 'viewMenu' },
-        { type: 'separator' },
-        {
-          role: 'toggleDevTools',
-          label: 'Инструменты разработчика',
-          accelerator: isMac ? 'Alt+Command+I' : 'Ctrl+Shift+I',
-        },
-        { type: 'separator' },
-        { role: 'toggleTabBar' },
-        { role: 'selectNextTab' },
-        { role: 'selectPreviousTab' },
-        {
-          role: 'resetZoom',
-          label: 'Сбросить масштаб',
-          accelerator: 'CmdOrCtrl+0',
-        },
-        {
-          role: 'zoomIn',
-          label: 'Увеличить масштаб',
-          accelerator: 'CmdOrCtrl+=',
-        },
-        {
-          role: 'zoomOut',
-          label: 'Уменьшить масштаб',
-          accelerator: 'CmdOrCtrl+-',
-        },
-        { type: 'separator' },
-        {
-          role: 'togglefullscreen',
-          label: 'Полноэкранный режим',
-          accelerator: isMac ? 'Ctrl+Command+F' : 'F11',
-        },
-      ],
-    },
-    {
-      label: 'Сервисы',
-      submenu: [
-        { role: 'speechSubmenu' },
-        { role: 'toggleSmartQuotes' },
-        { role: 'toggleSmartDashes' },
-      ],
-    },
-    {
-      label: 'Окно',
-      submenu: [
-        { role: 'mergeAllWindows' },
-        { role: 'moveTabToNewWindow' },
-        { role: 'showAllTabs' },
-      ],
-    },
-    {
-      label: 'Трей',
-      submenu: [
-        {
-          label: 'Открыть окно',
-          click: () => win.show(),
-        },
-        {
-          label: 'Выход',
-          role: 'quit',
-        },
-      ],
-    },
-    {
-      label: 'Инструменты',
-      submenu: [
-        {
-          label: 'Очистить кеш',
-          click: () => win.webContents.session.clearCache(),
-        },
-        {
-          label: 'Настройки',
-          click: () => {},
-        },
-      ],
-    },
-    {
-      label: 'Навигация',
-      submenu: [
-        {
-          label: 'Назад',
-          accelerator: 'Alt+Left',
-          click: () => {
-            const webContents = win.webContents;
-            if (webContents.canGoBack()) webContents.goBack();
-          },
-        },
-        {
-          label: 'Вперёд',
-          accelerator: 'Alt+Right',
-          click: () => {
-            const webContents = win.webContents;
-            if (webContents.canGoForward()) webContents.goForward();
-          },
-        },
-        { type: 'separator' },
-        {
-          label: 'Домой',
-          click: () => win.loadURL('https://example.com'),
-        },
-      ],
-    },
-
-    {
-      label: 'Справка',
-      submenu: [
-        {
-          label: 'Сообщить об ошибке',
-          click: async () => {
-            const { shell } = require('electron');
-            await shell.openExternal(
-              'https://github.com/Kramarich000/Quasar/issues',
-            );
-          },
-        },
-      ],
-    },
-  ];
-
-  Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate));
-  // win.setMenuBarVisibility(false);
-  // win.setAutoHideMenuBar(true);
+  // win.webContents.openDevTools({ mode: 'detach' });
 
   if (isDev) {
     win.loadURL('http://localhost:5173');
   } else {
+    // win.loadURL('http://localhost:5173');
     win.loadFile(join(__dirname, 'dist', 'index.html'));
   }
 }
@@ -354,168 +186,14 @@ if (isDev) {
     } catch (_) {}
   })();
 }
-function createNewWindowWithUrl(url) {
-  const newWindow = new BrowserWindow({
-    width: 1200,
-    height: 900,
-    minWidth: 800,
-    minHeight: 600,
-    frame: false,
-    titleBarStyle: 'hidden',
-    webPreferences: {
-      partition: 'persist:browser',
-      preload: join(__dirname, 'preload.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      webviewTag: true,
-      sandbox: true,
-      // experimentalFeatures: true,
-      offscreen: false,
-      //plugins: true,
-      scrollBounce: true,
-      enableWebGL: true,
-      enableAccelerated2dCanvas: true,
-    },
-  });
-  if (isDev) {
-    newWindow.loadURL('http://localhost:5173');
-  } else {
-    newWindow.loadFile(join(__dirname, 'dist', 'index.html'));
-  }
 
-  newWindow.webContents.on('did-finish-load', () => {
-    newWindow.webContents.send('init-tab-url', url);
-  });
-
-  detachedWindows.add(newWindow);
-  // newWindow.webContents.openDevTools();
-
-  newWindow.on('closed', () => {
-    detachedWindows.delete(newWindow);
-  });
-
-  return newWindow;
-}
-
-function createNewIncognitoWindowWithUrl(url) {
-  const incognitoWindow = new BrowserWindow({
-    width: 1200,
-    height: 900,
-    minWidth: 800,
-    minHeight: 600,
-    frame: false,
-    titleBarStyle: 'hidden',
-    webPreferences: {
-      partition: `in-memory-incognito-${Date.now()}`,
-      preload: join(__dirname, 'preload.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      webviewTag: true,
-      sandbox: true,
-      // experimentalFeatures: true,
-      offscreen: false,
-      //plugins: true,
-      scrollBounce: true,
-      enableWebGL: true,
-      enableAccelerated2dCanvas: true,
-    },
-  });
-
-  incognitoWindow.webContents.openDevTools();
-
-  incognitoWindows.add(incognitoWindow);
-
-  incognitoWindow.on('closed', () => {
-    incognitoWindows.delete(incognitoWindow);
-  });
-
-  if (isDev) {
-    incognitoWindow.loadURL('http://localhost:5173');
-  } else {
-    incognitoWindow.loadFile(join(__dirname, 'dist', 'index.html'));
-  }
-
-  incognitoWindow.webContents.on('did-finish-load', () => {
-    incognitoWindow.webContents.send('init-tab-url', url);
-  });
-
-  return incognitoWindow;
-}
-
-const historyFilePath = join(__dirname, 'history.json');
-let history = [];
-if (existsSync(historyFilePath)) {
-  try {
-    const data = readFileSync(historyFilePath, 'utf-8');
-    history = JSON.parse(data);
-  } catch (error) {
-    console.error('Ошибка при чтении файла истории:', error);
-    history = [];
-  }
-}
-
-ipcMain.on('window-minimize', (event) => {
-  const senderWin = BrowserWindow.fromWebContents(event.sender);
-  if (senderWin && !senderWin.isDestroyed()) {
-    senderWin.minimize();
-  }
-});
-ipcMain.handle('window-toggleMaximize', (event) => {
-  const senderWin = BrowserWindow.fromWebContents(event.sender);
-  if (!senderWin || senderWin.isDestroyed()) return false;
-
-  if (senderWin.isMaximized()) {
-    senderWin.unmaximize();
-    return false;
-  } else {
-    senderWin.maximize();
-    return true;
-  }
-});
-
-ipcMain.on('history-add', (event, entry) => {
-  history.push(entry);
-  try {
-    writeFileSync(historyFilePath, JSON.stringify(history, null, 2));
-  } catch (error) {
-    console.error('Ошибка при записи файла истории:', error);
-  }
-});
-
-ipcMain.handle('get-history', () => history);
-
-ipcMain.on('window-close', (event) => {
-  const senderWin = BrowserWindow.fromWebContents(event.sender);
-  if (senderWin && !senderWin.isDestroyed()) {
-    senderWin.close();
-  }
-});
-ipcMain.on('go-back', (event) => {
-  const senderWin = BrowserWindow.fromWebContents(event.sender);
-  if (senderWin && senderWin.webContents.canGoBack()) {
-    senderWin.webContents.goBack();
-  }
-});
-ipcMain.on('go-forward', (event) => {
-  const senderWin = BrowserWindow.fromWebContents(event.sender);
-  if (senderWin && senderWin.webContents.canGoForward()) {
-    senderWin.webContents.goForward();
-  }
-});
-ipcMain.on('reload', (event) => {
-  const senderWin = BrowserWindow.fromWebContents(event.sender);
-  if (senderWin) {
-    senderWin.webContents.reload();
-  }
-});
-
-ipcMain.handle('open-external-url', async (event, url) => {
+ipcMain.handle('window:openExternalUrl', async (event, url) => {
   if (url && typeof url === 'string' && url.startsWith('http')) {
     await shell.openExternal(url);
   }
 });
 
-ipcMain.on('freeze-tab', (event, wcId) => {
+ipcMain.on('window:freezeTab', (event, wcId) => {
   const wc = webContents.fromId(wcId);
   if (!wc || wc.isDestroyed()) return;
 
@@ -529,7 +207,7 @@ ipcMain.on('freeze-tab', (event, wcId) => {
   }
 });
 
-ipcMain.on('unfreeze-tab', (event, wcId) => {
+ipcMain.on('window:unfreezeTab', (event, wcId) => {
   const wc = webContents.fromId(wcId);
   if (!wc || wc.isDestroyed()) return;
 
@@ -543,54 +221,253 @@ ipcMain.on('unfreeze-tab', (event, wcId) => {
   }
 });
 
-ipcMain.on('window-createIncognitoWindow', () => {
-  console.log('Создание инкогнито-окна...');
+ipcMain.handle('window:bvLoadUrl', async (_e, url) => {
+  if (!activeTabId) return { success: false, error: 'No active tab' };
 
-  const incognitoWindow = new BrowserWindow({
-    frame: false,
-    titleBarStyle: 'hidden',
-    width: 1200,
-    height: 900,
-    minWidth: 800,
-    minHeight: 600,
-    webPreferences: {
-      incognito: true,
-      partition: `in-memory-incognito-${Date.now()}`,
-      preload: join(__dirname, 'preload.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      webviewTag: true,
+  const view = views.get(activeTabId);
+  if (!view) return { success: false, error: 'View for active tab not found' };
+
+  try {
+    // Если это локальный файл из public директории
+    if (url.startsWith('file://')) {
+      const filePath = url.replace('file://', '');
+      const publicPath = join(__dirname, 'dist', filePath);
+      if (existsSync(publicPath)) {
+        await view.webContents.loadFile(publicPath);
+        return { success: true };
+      }
+    }
+    // Для обычных URL
+    await view.webContents.loadURL(url);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.on('bvDestroy', (_event, tabId) => {
+  const view = views.get(tabId);
+  if (view) {
+    win.removeBrowserView(view);
+    view.webContents.destroy();
+    views.delete(tabId);
+
+    if (activeTabId === tabId) {
+      activeTabId = null;
+      // Здесь можно переключить на другую вкладку или скрыть BrowserView
+    }
+  }
+});
+
+// --------- Работа с табами ---------- //
+// 1. Создание таба //
+ipcMain.handle('window:bvCreateTab', async (_e, { id, url }) => {
+  // Создаем новую сессию для вкладки
+  const tabSession = session.fromPartition(`persist:tab-${id}`, { cache: false });
+  const t0 = performance.now();
+  const view = createBrowserView({
+    webPreferences: { 
+      contextIsolation: true, 
       sandbox: true,
-      // experimentalFeatures: true,
-      //plugins: true,
-      scrollBounce: true,
-      enableWebGL: true,
-      additionalArguments: ['--incognito'],
-      enableAccelerated2dCanvas: true,
+      partition: `persist:tab-${id}`,
+      webSecurity: true,
+      allowRunningInsecureContent: false,
+      nodeIntegration: false,
+      webviewTag: false,
+      backgroundThrottling: false,
+      enableRemoteModule: false,
+      spellcheck: false,
+      plugins: false,
+      session: tabSession,
     },
+    win,
+  });
+  const t1 = performance.now();
+  console.log(`Создание view: ${t1 - t0} мс`);
+  // Добавляем слушатели
+  view.webContents.on('did-start-loading', () => {
+    win.webContents.send('bvDidStartLoading', id);
+  });
+  
+  view.webContents.on('did-stop-loading', () => {
+    win.webContents.send('bvDidStopLoading', id);
+  });
+  
+  view.webContents.on('ready-to-show', () => {
+    win.webContents.send('bvDomReady', id);
   });
 
-  // incognitoWindow.webContents.openDevTools();
-
-  incognitoWindows.add(incognitoWindow);
-
-  incognitoWindow.on('closed', () => {
-    incognitoWindows.delete(incognitoWindow);
+  // Добавляем обработчики для заголовка и URL
+  view.webContents.on('page-title-updated', (event, title) => {
+    win.webContents.send('tabTitleUpdated', { id, title });
   });
 
-  if (isDev) {
-    incognitoWindow.loadURL('http://localhost:5173');
-  } else {
-    incognitoWindow.loadFile(join(__dirname, 'dist', 'index.html'));
+  view.webContents.on('page-favicon-updated', (event, favicons) => {
+    if (favicons && favicons.length > 0) {
+      // Преобразуем относительный URL в абсолютный
+      const faviconUrl = new URL(favicons[0], view.webContents.getURL()).href;
+      win.webContents.send('tabFaviconUpdated', { id, favicon: faviconUrl });
+    }
+  });
+
+  view.webContents.on('did-navigate', (event, url) => {
+    win.webContents.send('tabUrlUpdated', { id, url });
+  });
+
+  view.webContents.on('did-navigate-in-page', (event, url) => {
+    win.webContents.send('tabUrlUpdated', { id, url });
+  });
+
+  // Устанавливаем размеры
+  const { width, height } = win.getContentBounds();
+  view.setBounds({
+    x: 0,
+    y: Math.floor(headerHeight),
+    width,
+    height: Math.floor(height - headerHeight),
+  });
+
+  // Сохраняем view в Map
+  views.set(id, view);
+
+  // Если это первая вкладка, делаем её активной
+  if (activeTabId == null) {
+    activeTabId = id;
+    win.setBrowserView(view);
+  }
+
+  // Загружаем контент
+  try {
+    if (!url || url.trim() === '') {
+      const newTabPath = join(__dirname, 'dist', 'tab-content.html');
+      if (existsSync(newTabPath)) {
+        const t2 = performance.now();
+        await view.webContents.loadFile(newTabPath);
+        const t3 = performance.now();
+        console.log(`Загрузка файла: ${t3 - t2} мс`);
+      }
+    } else {
+      await view.webContents.loadURL(url);
+    }
+  } catch (error) {
+    console.error('Failed to load content:', error);
+  }
+
+  return { success: true };
+});
+
+// 2. Смена таба //
+ipcMain.handle('window:bvSwitchTab', async (_e, id) => {
+  if (!views.has(id) || id === activeTabId) return;
+  
+  const newView = views.get(id);
+  const oldView = views.get(activeTabId);
+
+  // Просто переключаем видимость вкладок
+  win.setBrowserView(newView);
+  activeTabId = id;
+  win.webContents.send('tabSwitched', activeTabId);
+});
+
+// 3. Закрытие таба //
+ipcMain.on('window:closeTab', (_e, id) => {
+  const view = views.get(id);
+  if (!view) return;
+
+  // Уничтожаем view
+  win.removeBrowserView(view);
+  view.webContents.destroy();
+  views.delete(id);
+
+  // Если закрыли активную вкладку, переключаемся на другую
+  if (activeTabId === id) {
+    const remaining = Array.from(views.keys());
+    activeTabId = remaining.length ? remaining[0] : null;
+    
+    if (activeTabId) {
+      const nextView = views.get(activeTabId);
+      nextView.webContents.setBackgroundThrottling(false);
+      win.setBrowserView(nextView);
+      win.webContents.send('tabSwitched', activeTabId);
+    }
   }
 });
-ipcMain.handle('window-detachTab', (event, { url, incognito, id }) => {
-  if (incognito) {
-    return createNewIncognitoWindowWithUrl(url);
-  } else {
-    return createNewWindowWithUrl(url);
+// ------------------------------- //
+
+// --------- Работа с окнами ---------- //
+// 1. Назад
+ipcMain.on('window:bvGoBack', () => {
+  const view = getCurrentView();
+  if (view && view.webContents.canGoBack()) {
+    view.webContents.goBack();
   }
 });
+
+// 2. Вперед
+ipcMain.on('window:bvGoForward', () => {
+  const view = getCurrentView();
+  if (view && view.webContents.canGoForward()) {
+    view.webContents.goForward();
+  }
+});
+
+// 3. Перезагрузка
+ipcMain.on('window:bvReload', () => {
+  const view = getCurrentView();
+  if (view) {
+    view.webContents.reload();
+  }
+});
+
+// ------------------------------- //
+
+// --------- Работа с окном браузера --------- //
+// 1. Свернуть
+ipcMain.on('window:minimize', () => {
+  win.minimize();
+});
+// 2. Закрыть
+ipcMain.on('window:close', () => {
+  win.close();
+});
+// 3. Полноэкранный/оконный режим
+ipcMain.handle('window:toggleMaximize', () => {
+  if (win.isMaximized()) {
+    win.unmaximize();
+    return false;
+  } else {
+    win.maximize();
+    return true;
+  }
+});
+
+// 4. Адаптивное вычисление шапки
+ipcMain.on('window:setHeaderHeight', (_event, newHeaderHeight) => {
+  if (typeof newHeaderHeight !== 'number' || newHeaderHeight < 0) return;
+  console.log('Новая высота заголовка:', newHeaderHeight);
+  headerHeight = newHeaderHeight;
+
+  const view = getCurrentView();
+  if (view && win) {
+    const { width, height: windowHeight } = win.getContentBounds();
+    view.setBounds({
+      x: 0,
+      y: Math.floor(newHeaderHeight), // Округляем для избежания проблем с пикселями
+      width,
+      height: Math.floor(windowHeight - newHeaderHeight), // Округляем для избежания проблем с пикселями
+    });
+    view.setAutoResize({ 
+      width: true, 
+      height: true,
+      horizontal: true,
+      vertical: true
+    });
+  }
+});
+
+// ------------ //
+
+// ---- Обновление ----- //
 
 autoUpdater.on('checking-for-update', () =>
   console.log('Проверка обновлений…'),
@@ -598,6 +475,7 @@ autoUpdater.on('checking-for-update', () =>
 autoUpdater.on('update-available', (info) =>
   console.log('Есть обновление', info),
 );
+
 autoUpdater.on('update-downloaded', async (info) => {
   console.log('Обновление скачано:', info);
 
@@ -655,3 +533,31 @@ if (!gotLock) {
     if (process.platform !== 'darwin') app.quit();
   });
 }
+
+// Добавляем обработчик для получения favicon
+ipcMain.handle('window:getFavicon', async (_e, tabId) => {
+  const view = views.get(tabId);
+  if (!view) return { favicon: null };
+
+  try {
+    const favicon = await view.webContents.executeJavaScript(`
+      (() => {
+        const iconLink = document.querySelector('link[rel="icon"]');
+        if (iconLink && iconLink.href) {
+          return iconLink.href;
+        }
+        return '/favicon.ico';
+      })()
+    `);
+
+    if (favicon) {
+      // Преобразуем относительный URL в абсолютный
+      const absoluteUrl = new URL(favicon, view.webContents.getURL()).href;
+      return { favicon: absoluteUrl };
+    }
+  } catch (error) {
+    console.error('Error getting favicon:', error);
+  }
+
+  return { favicon: null };
+});
