@@ -18,12 +18,35 @@ export function TabContainer({
   const loadingTimeoutRef = useRef(null);
   const prevUrlRef = useRef(tab.url);
 
-  // Эффект для отслеживания изменений URL
+  const isInternalUrl = (url) => {
+    if (!url) return true;
+    if (url === 'about:blank') return true;
+    if (url.startsWith('file://')) return true;
+    return false;
+  };
+
   useEffect(() => {
-    if (prevUrlRef.current !== tab.url) {
-      console.log('URL changed, showing loader:', { oldUrl: prevUrlRef.current, newUrl: tab.url });
-      setIsFaviconLoading(true);
-      prevUrlRef.current = tab.url;
+    const newUrl = tab.url;
+
+    if (isInternalUrl(newUrl) && favicons[tab.id]) {
+      delete favicons[tab.id];
+    }
+  }, [tab.url]);
+
+  useEffect(() => {
+    const prevUrl = prevUrlRef.current;
+    const newUrl = tab.url;
+
+    if (prevUrl !== newUrl) {
+      console.log('URL changed:', { oldUrl: prevUrl, newUrl });
+
+      if (isInternalUrl(newUrl)) {
+        setIsFaviconLoading(false);
+      } else {
+        setIsFaviconLoading(true);
+      }
+
+      prevUrlRef.current = newUrl;
     }
   }, [tab.url]);
 
@@ -32,13 +55,13 @@ export function TabContainer({
       clearTimeout(loadingTimeoutRef.current);
     }
 
-    if (faviconUrl.startsWith('data:') || faviconUrl === defaultFavicon) {
+    if (faviconUrl === defaultFavicon || faviconUrl.startsWith('data:')) {
       setIsFaviconLoading(false);
       return;
     }
 
     const img = new Image();
-    
+
     img.onload = () => {
       loadingTimeoutRef.current = setTimeout(() => {
         if (imgRef.current && imgRef.current.src === faviconUrl) {
@@ -63,7 +86,10 @@ export function TabContainer({
   }, [faviconUrl, defaultFavicon]);
 
   const handleFaviconLoad = () => {
-    console.log('Favicon loaded in img element:', { tabId: tab.id, faviconUrl });
+    console.log('Favicon loaded in img element:', {
+      tabId: tab.id,
+      faviconUrl,
+    });
     setIsFaviconLoading(false);
   };
 
@@ -76,7 +102,11 @@ export function TabContainer({
     }
   };
 
-  console.log('Rendering tab:', { tabId: tab.id, faviconUrl, isFaviconLoading });
+  console.log('Rendering tab:', {
+    tabId: tab.id,
+    faviconUrl,
+    isFaviconLoading,
+  });
 
   useHotkeys((e) => {
     if (e.ctrlKey && e.code === 'KeyW') {
@@ -144,12 +174,12 @@ export function TabContainer({
         }
       }}
       className={`relative 
-                 flex-shrink flex-grow h-full !transition-colors basis-0 p-2 flex max-w-[300px] items-center px-2 mx-0.5 rounded-t-md
+                 flex-shrink min-w-0 shadow-inner z-101 duration-150 ease-in-out flex-grow h-full !transition-colors basis-0 flex max-w-[300px] items-center px-2 mx-0.5 rounded-[30px]
                  overflow-hidden whitespace-nowrap
                  ${
                    tab.id === activeTab
-                     ? 'bg-gray-900 '
-                     : 'bg-gray-800 hover:bg-gray-700'
+                     ? 'bg-gray-900 text-white !shadow-[inset_0px_0px_20px_0px_#0e7490]'
+                     : 'bg-gray-900 text-gray-300 hover:bg-gray-700 '
                  }
                `}
     >
@@ -186,7 +216,7 @@ export function TabContainer({
 
       <span
         style={{ WebkitAppRegion: 'no-drag' }}
-        className="truncate w-full h-full flex items-baseline text-left pointer-events-none pl-2 !select-none"
+        className="truncate w-full h-full flex items-center text-left pointer-events-none pl-2 !select-none"
         title={tab.url || 'Новая вкладка'}
       >
         {getDisplayTitle()}
@@ -201,7 +231,7 @@ export function TabContainer({
         title="Закрыть вкладку"
         className="!m-0 !ml-auto !p-0 !w-[20px] !h-[20px] flex items-center justify-center !right-4 !bg-transparent !outline-0 !border-0 hover:!bg-gray-500 !rounded-full !transition-all hover"
       >
-        <IoClose />
+        <IoClose size={20} />
       </button>
     </motion.div>
   );

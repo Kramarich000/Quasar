@@ -20,8 +20,17 @@ export default function ToolBar({ url, onChangeUrl }) {
       });
     }
   }, [highlightedIndex]);
+
+  const getDisplayUrl = (url) => {
+    if (!url) return '';
+    if (url === 'about:blank') return '';
+    if (url.startsWith('file://')) return '';
+    return url;
+  };
+
   useEffect(() => {
-    setInputValue(url);
+    const displayUrl = getDisplayUrl(url);
+    setInputValue(displayUrl);
   }, [url]);
 
   useEffect(() => {
@@ -94,7 +103,8 @@ export default function ToolBar({ url, onChangeUrl }) {
   };
 
   const handleSelect = (phrase) => {
-    setInputValue(phrase);
+    const displayUrl = getDisplayUrl(phrase);
+    setInputValue(displayUrl);
     setIsSuggestOpen(false);
     navigate(phrase);
   };
@@ -178,7 +188,7 @@ export default function ToolBar({ url, onChangeUrl }) {
           <FaArrowRotateRight />
           {/* </motion.div> */}
         </button>
-        <div className="flex relative w-[88%] flex-col">
+        <div className="flex relative w-[100%] flex-col">
           <input
             type="text"
             value={inputValue}
@@ -202,7 +212,7 @@ export default function ToolBar({ url, onChangeUrl }) {
               setIsSuggestOpen(suggestions.length > 0);
             }}
             placeholder="Введите URL или запрос"
-            className="flex-1 bg-gray-700 placeholder-gray-400 px-3 py-1 rounded focus:outline-none relative z-20"
+            className="flex-1 z-101 bg-transparent placeholder-gray-400 !transition-colors px-3 py-1 rounded-[30px] border-2 border-gray-400 focus:!border-cyan-700 focus:outline-none relative "
             spellCheck={false}
           />
 
@@ -222,8 +232,8 @@ export default function ToolBar({ url, onChangeUrl }) {
                       px-3 pl-[40px] py-2 hover:bg-gray-600
                       ${
                         highlightedIndex === idx
-                          ? 'bg-gray-600'
-                          : 'hover:bg-gray-600'
+                          ? 'bg-red-600'
+                          : 'hover:bg-red-500'
                       }
                     `}
                 >

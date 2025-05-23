@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import defaultFavicon from '../assets/default-favicon.svg';
 import { useTabLoadingState } from '../hooks/useTabLoadingState';
 import { TabContainer } from './TabContainer';
+import { SlGlobe } from 'react-icons/sl';
 
 export default function TabBar({
   tabs,
@@ -98,7 +99,7 @@ export default function TabBar({
               : 'hover:bg-gray-500'
           }`}
         >
-          <IoAdd />
+          <IoAdd size={20} />
         </button>
         <button
           style={{ WebkitAppRegion: 'no-drag' }}
@@ -115,17 +116,17 @@ export default function TabBar({
             pointerEvents: 'auto',
           }}
           title={
-            isSecure
+            isSecure === 'secure'
               ? 'Ваше соединение защищено'
-              : 'Внимание! Ваше соединение не защищено'
+              : isSecure === 'insecure'
+              ? 'Внимание! Ваше соединение не защищено'
+              : 'Главная страница'
           }
           className="!ml-4 !mt-[5px]"
         >
-          {isSecure ? (
-            <HiLockClosed color="green" size={25} />
-          ) : (
-            <IoWarning color="red" size={25} />
-          )}
+          {isSecure === 'secure' && <HiLockClosed color="green" size={25} />}
+          {isSecure === 'insecure' && <IoWarning color="red" size={25} />}
+          {isSecure === 'local' && <SlGlobe size={25} />}
         </span>
 
         <div className="flex ml-10" style={{ WebkitAppRegion: 'no-drag' }}>
@@ -140,6 +141,27 @@ export default function TabBar({
           </div>
         </div>
       </div>
+      <svg
+        class="absolute bottom-0 z-100 left-0 w-full h-14 opacity-80 pointer-events-none"
+        viewBox="0 0 100 40"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        preserveAspectRatio="none"
+      >
+        <path d="M0 40 Q50 -20 100 40" fill="#0e7490" filter="url(#blur)" />
+        <defs>
+          <filter
+            id="blur"
+            x="-50%"
+            y="-50%"
+            width="200%"
+            height="200%"
+            color-interpolation-filters="sRGB"
+          >
+            <feGaussianBlur stdDeviation="6" />
+          </filter>
+        </defs>
+      </svg>
     </>
   );
 }

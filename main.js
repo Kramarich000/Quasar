@@ -32,14 +32,21 @@ const POOL_SIZE = 25;
 const viewPool = [];
 const viewInUse = new Map();
 const faviconCache = new Map();
+const MAX_FAVICON_CACHE = 50; // Максимальное количество favicon в кэше
 let faviconSession;
 
 function setActiveView(view) {
   const old = getCurrentView();
   if (old && old !== view) {
+    // Оптимизируем старый view
+    old.webContents.setBackgroundThrottling(true);
+    old.webContents.setFrameRate(5); // Снижаем FPS, но не до минимума
     win.removeBrowserView(old);
   }
   win.setBrowserView(view);
+  // Восстанавливаем нормальную работу для активного view
+  view.webContents.setBackgroundThrottling(false);
+  view.webContents.setFrameRate(60);
 }
 
 function updateViewBounds(view) {
@@ -61,6 +68,11 @@ const debounce = (fn, ms) => {
 };
 
 function attachViewListeners(view) {
+  if (!view || !view.webContents || view.webContents.isDestroyed()) {
+    console.warn('View or webContents destroyed. Skipping favicon load.');
+    return;
+  }
+
   view.webContents.on('did-start-loading', () =>
     win.webContents.send('bvDidStartLoading', view._tabId),
   );
@@ -101,14 +113,25 @@ function attachViewListeners(view) {
     };
 
     try {
+      const currentUrl = view.webContents.getURL();
+      if (
+        !currentUrl ||
+        currentUrl === 'about:blank' ||
+        currentUrl.startsWith('file://')
+      ) {
+        throw new Error('Invalid URL for favicon');
+      }
       const faviconUrl = new URL(favicons[0], view.webContents.getURL()).href;
       console.log('Fetching favicon:', faviconUrl);
-
+      if (faviconUrl.endsWith('.svg') || faviconUrl.endsWith('.webmanifest')) {
+        throw new Error('Unsupported favicon type');
+      }
       faviconSession.webRequest.onHeadersReceived(onHeadersReceivedCallback);
 
       const response = await fetch(faviconUrl, {
         headers: {
           Accept: 'image/*',
+          'User-Agent': 'Mozilla/5.0',
         },
       });
 
@@ -117,30 +140,59 @@ function attachViewListeners(view) {
       }
 
       const blob = await response.blob();
+      if (!blob.type.startsWith('image/')) {
+        throw new Error('Response is not an image');
+      }
       const dataUrl = `data:${blob.type};base64,${Buffer.from(
         await blob.arrayBuffer(),
       ).toString('base64')}`;
-      faviconCache.set(cacheKey, dataUrl);
 
-      // await new Promise((resolve) => setTimeout(resolve, 100));
+      cleanupFaviconCache();
+
+      faviconCache.set(cacheKey, dataUrl);
 
       win.webContents.send('tabFaviconUpdated', {
         id: view._tabId,
         favicon: dataUrl,
       });
-
-      faviconCache.set(cacheKey, dataUrl);
     } catch (error) {
       console.error('Error loading favicon:', error);
-      win.webContents.send('tabFaviconUpdated', {
-        id: view._tabId,
-        favicon: null,
-      });
+
+      try {
+        const domain = new URL(view.webContents.getURL()).hostname;
+        const googleFaviconUrl = `https://www.google.com/s2/favicons?domain= ${domain}`;
+
+        const response = await fetch(googleFaviconUrl);
+        if (!response.ok)
+          throw new Error(`Google Favicon API error: ${response.status}`);
+
+        const blob = await response.blob();
+        if (!blob.type.startsWith('image/')) {
+          throw new Error(`Google returned non-image: ${blob.type}`);
+        }
+        const dataUrl = `data:${blob.type};base64,${Buffer.from(
+          await blob.arrayBuffer(),
+        ).toString('base64')}`;
+
+        faviconCache.set(cacheKey, dataUrl);
+
+        if (!win.webContents.isDestroyed()) {
+          win.webContents.send('tabFaviconUpdated', {
+            id: view._tabId,
+            favicon: dataUrl,
+          });
+        }
+      } catch (fallbackError) {
+        console.error('Fallback favicon failed:', fallbackError);
+        if (!win.webContents.isDestroyed()) {
+          win.webContents.send('tabFaviconUpdated', {
+            id: view._tabId,
+            favicon: defaultFavicon,
+          });
+        }
+      }
     } finally {
-      faviconSession.webRequest.off(
-        'headersReceived',
-        onHeadersReceivedCallback,
-      );
+      faviconSession.webRequest.onHeadersReceived(null);
     }
   });
   view.webContents.on('did-navigate', (_e, url) =>
@@ -149,6 +201,17 @@ function attachViewListeners(view) {
   view.webContents.on('did-navigate-in-page', (_e, url) =>
     win.webContents.send('tabUrlUpdated', { id: view._tabId, url }),
   );
+}
+
+// Функция для очистки старых favicon
+function cleanupFaviconCache() {
+  if (faviconCache.size > MAX_FAVICON_CACHE) {
+    // Получаем все ключи и сортируем их по времени добавления
+    const keys = Array.from(faviconCache.keys());
+    // Удаляем старые записи, оставляя только MAX_FAVICON_CACHE самых новых
+    const keysToDelete = keys.slice(0, keys.length - MAX_FAVICON_CACHE);
+    keysToDelete.forEach((key) => faviconCache.delete(key));
+  }
 }
 
 async function createPooledView(poolId) {
@@ -214,16 +277,41 @@ async function acquireView(tabId) {
 }
 
 async function releaseView(view) {
-  win.removeBrowserView(view);
-  view.webContents.removeAllListeners();
-  // const tpl = join(__dirname, 'dist', 'tab-content.html');
-  // if (existsSync(tpl)) {
-  //   await view.webContents.loadFile(tpl);
-  // }
-  await view.webContents.session.clearStorageData({
-    storages: ['cache', 'cookies', 'filesystem', 'indexDB', 'localStorage'],
-  });
-  viewInUse.set(view, false);
+  if (!view) return;
+
+  try {
+    // view.webContents.forcefullyCrashRenderer();
+
+    view.webContents.stop();
+
+    // view.webContents.setAudioMuted(true);
+
+    await Promise.all([
+      view.webContents.session.clearCache(),
+      view.webContents.session.clearStorageData({
+        storages: [
+          'cache',
+          'cookies',
+          'filesystem',
+          'indexDB',
+          'localStorage',
+          'mediaKeys',
+        ],
+      }),
+    ]);
+    await view.webContents.loadURL('about:blank');
+    console.log('adasdasdadadasdasd');
+    const tpl = join(__dirname, 'dist', 'tab-content.html');
+    if (existsSync(tpl)) {
+      await view.webContents.loadFile(tpl);
+    }
+
+    view.webContents.removeAllListeners();
+
+    viewInUse.set(view, false);
+  } catch (error) {
+    console.error('Error releasing view:', error);
+  }
 }
 
 function getCurrentView() {
@@ -247,7 +335,7 @@ function createWindow() {
       partition: 'persist:browser',
       preload: join(__dirname, 'preload.js'),
       contextIsolation: true,
-      devTools: true,
+      devTools: false,
       nodeIntegration: false,
       webviewTag: false,
       sandbox: true,
@@ -279,34 +367,33 @@ function createWindow() {
     },
   });
 
-  win.setMaxListeners(10);
+  win.setMaxListeners(20);
   win.once('ready-to-show', () => {
     win.show();
   });
 
   win.webContents.on('before-input-event', (event, input) => {
     if (
-      (input.type === 'keyDown' &&
-        input.control &&
-        input.shift &&
-        input.key === 'i',
-      input.code === 'keyI')
+      input.type === 'keyDown' &&
+      input.control &&
+      input.shift &&
+      input.code === 'keyI'
     ) {
       event.preventDefault();
     }
   });
 
-  const resizeHandler = () => {
-    const v = getCurrentView();
-    if (!v) return;
-    const { width, height } = win.getContentBounds();
-    v.setBounds({
-      x: 0,
-      y: Math.floor(headerHeight),
-      width,
-      height: Math.floor(height - headerHeight),
-    });
-  };
+  // const resizeHandler = () => {
+  //   const v = getCurrentView();
+  //   if (!v) return;
+  //   const { width, height } = win.getContentBounds();
+  //   v.setBounds({
+  //     x: 0,
+  //     y: Math.floor(headerHeight),
+  //     width,
+  //     height: Math.floor(height - headerHeight),
+  //   });
+  // };
 
   function resizeAll() {
     for (const v of views.values()) {
@@ -324,12 +411,21 @@ function createWindow() {
     'unmaximize',
   ].forEach((evt) => win.on(evt, debouncedResizeAll));
 
-  win.on('focus', () =>
-    getCurrentView()?.webContents.setBackgroundThrottling(false),
-  );
-  win.on('blur', () =>
-    getCurrentView()?.webContents.setBackgroundThrottling(true),
-  );
+  win.on('focus', () => {
+    const view = getCurrentView();
+    if (view) {
+      view.webContents.setBackgroundThrottling(false);
+      view.webContents.setFrameRate(60);
+    }
+  });
+
+  win.on('blur', () => {
+    const view = getCurrentView();
+    if (view) {
+      view.webContents.setBackgroundThrottling(true);
+      view.webContents.setFrameRate(5);
+    }
+  });
 
   win.webContents.on('did-finish-load', () => {
     win.webContents.setZoomFactor(1);
@@ -347,7 +443,7 @@ function createWindow() {
   win.on('closed', () => {
     win = null;
   });
-  win.webContents.openDevTools({ mode: 'detach' });
+  // win.webContents.openDevTools({ mode: 'detach' });
 
   if (isDev) {
     win.loadURL('http://localhost:5173');
@@ -366,7 +462,7 @@ if (isDev) {
   })();
 }
 
-ipcMain.handle('window:openExternalUrl', async (event, url) => {
+ipcMain.handle('window:openExternal', async (event, url) => {
   if (url && typeof url === 'string' && url.startsWith('http')) {
     await shell.openExternal(url);
   }
@@ -472,16 +568,16 @@ ipcMain.on('window:closeTab', async (_e, id) => {
 // 1. Назад
 ipcMain.on('window:bvGoBack', () => {
   const view = getCurrentView();
-  if (view && view.webContents.canGoBack()) {
-    view.webContents.goBack();
+  if (view && view.webContents.navigationHistory.canGoBack()) {
+    view.webContents.navigationHistory.goBack();
   }
 });
 
 // 2. Вперед
 ipcMain.on('window:bvGoForward', () => {
   const view = getCurrentView();
-  if (view && view.webContents.canGoForward()) {
-    view.webContents.goForward();
+  if (view && view.webContents.navigationHistory.canGoForward()) {
+    view.webContents.navigationHistory.goForward();
   }
 });
 
@@ -595,12 +691,12 @@ if (!gotLock) {
   });
 
   app.whenReady().then(async () => {
-    autoUpdater.checkForUpdatesAndNotify()
+    autoUpdater.checkForUpdatesAndNotify();
     // setTimeout(() => autoUpdater.checkForUpdatesAndNotify(), 2000);
     createWindow();
     faviconSession = session.defaultSession;
     // setTimeout(() => initViewPool(), 1000);
-    initViewPool()
+    initViewPool();
     // contextMenu({ showInspectElement: isDev });
   });
 

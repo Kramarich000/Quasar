@@ -78,23 +78,45 @@ export default function App() {
     };
   }, []);
 
+  const URL_STATUS = {
+    SECURE: 'secure',
+    INSECURE: 'insecure',
+    LOCAL: 'local',
+  };
+
   useEffect(() => {
     const currentUrl = tabs.find((t) => t.id === activeTab)?.url || '';
-    let secure = false;
+    let status = URL_STATUS.INSECURE;
 
     try {
-      if (!currentUrl) {
-        secure = false;
+      if (!currentUrl || currentUrl === 'about:blank') {
+        status = URL_STATUS.LOCAL;
+      } else if (
+        currentUrl.startsWith('file://') ||
+        currentUrl.startsWith('app://') ||
+        currentUrl.includes('tab-content.html')
+      ) {
+        status = URL_STATUS.LOCAL;
       } else {
         const urlObj = new URL(currentUrl);
-        secure = urlObj.protocol === 'https:';
+        if (urlObj.protocol === 'https:') {
+          status = URL_STATUS.SECURE;
+        } else {
+          status = URL_STATUS.INSECURE;
+        }
       }
     } catch {
-      secure = false;
+      status = URL_STATUS.INSECURE;
     }
 
-    setIsSecure(secure);
-  }, [tabs, activeTab]);
+    setIsSecure(status);
+  }, [
+    tabs,
+    activeTab,
+    URL_STATUS.INSECURE,
+    URL_STATUS.LOCAL,
+    URL_STATUS.SECURE,
+  ]);
 
   const addTab = async (isIncognito = false) => {
     if (tabs.length >= MAX_TABS) return;
@@ -160,7 +182,7 @@ export default function App() {
 
   return (
     <div className="flex flex-col !h-full !w-full">
-      <div className="header-bar">
+      <div className="header-bar relative">
         <TabBar
           tabs={tabs}
           activeTab={activeTab}

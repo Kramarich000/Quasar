@@ -18,6 +18,7 @@
   "dependencies": {
     "@tippyjs/react": "^4.2.6",
     "electron-context-menu": "^4.0.5",
+    "electron-devtools-installer": "^4.0.0",
     "electron-squirrel-startup": "^1.0.1",
     "electron-updater": "^6.6.2",
     "framer-motion": "^12.12.1",
