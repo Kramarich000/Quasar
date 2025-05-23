@@ -645,35 +645,30 @@ autoUpdater.on('checking-for-update', () =>
 autoUpdater.on('update-available', (info) =>
   console.log('Есть обновление', info),
 );
-
 autoUpdater.on('update-downloaded', async (info) => {
   console.log('Обновление скачано:', info);
 
-  const { response } = await dialog.showMessageBox({
-    type: 'info',
-    buttons: ['Перезапустить сейчас', 'Позже'],
-    defaultId: 0,
-    cancelId: 1,
-    title: 'Обновление доступно',
-    message: 'Обновление загружено. Хотите установить его сейчас?',
-    detail: info.files?.[0]?.size
-      ? `Версия: ${info.version}\nРазмер: ~${(
-          info.files[0].size /
-          1024 /
-          1024
-        ).toFixed(1)} МБ`
-      : `Версия: ${info.version}`,
+  const modal = new BrowserWindow({
+    width: 500,
+    height: 400,
+    modal: true,
+    parent: mainWindow,
+    show: false,
+    frame: false,
+    resizable: false,
+    alwaysOnTop: true,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      preload: path.join(__dirname, 'preload-update.js'),
+    },
   });
 
-  if (response === 0) {
-    try {
-      autoUpdater.quitAndInstall();
-    } catch (e) {
-      console.error('Ошибка при установке обновления:', e);
-    }
-  } else {
-    console.log('Установка отложена');
-  }
+  modal.loadFile('update-modal.html');
+  modal.once('ready-to-show', () => {
+    modal.webContents.send('update-info', info); 
+    modal.show();
+  });
 });
 
 autoUpdater.on('error', (err) => console.error('Ошибка обновления', err));
