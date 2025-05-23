@@ -1,7 +1,7 @@
 {
   "name": "quasar",
   "private": true,
-  "version": "1.0.9",
+  "version": "1.0.10",
   "main": "main.js",
   "description": "Quasar Browser",
   "author": "Kramarich",
@@ -32,7 +32,7 @@
   },
   "build": {
     "appId": "com.kramarich.quasar",
-    "productName": "Quasar v${version}",
+    "productName": "Quasar",
     "publish": [
       {
         "provider": "github",
@@ -47,11 +47,36 @@
         {
           "target": "nsis-web",
           "arch": [
-            "x64",
-            "ia32"
+            "x64"
           ]
         }
       ],
+      "nsis": {
+        "installerIcon": "public/icons/icons/win/icon.ico",
+        "uninstallerIcon": "public/icons/icons/win/icon.ico",
+        "installerHeaderImageSpace": 0,
+        "oneClick": false,
+        "allowToChangeInstallationDirectory": true,
+        "createDesktopShortcut": "always",
+        "createStartMenuShortcut": true,
+        "shortcutName": "Quasar",
+        "deleteStartMenuShortcut": true,
+        "runAfterFinish": true,
+        "enableUninstallLog": true,
+        "fontFace": "Segoe UI",
+        "fontSizes": {
+          "header": 14,
+          "text": 12,
+          "link": 10
+        },
+        "backgroundColor": "#424242",
+        "textColor": "#FFFFFF",
+        "headingTextColor": "#FFFFFF",
+        "outputBaseFilename": "Quasar",
+        "onFailure": "log",
+        "includeModernUI": true,
+        "includeMUI": true
+      },
       "icon": "public/icons/icons/win/icon.ico"
     },
     "mac": {
@@ -60,12 +85,8 @@
         "dmg",
         "pkg"
       ],
-      "identity": "Apple Distribution: Your Name (Kramarich)",
-      "hardenedRuntime": true,
-      "gatekeeperAssessment": true,
-      "darkMode": true,
-      "extendElectronEnv": true,
-      "sandbox": true
+      "identity": "Apple Distribution: Kramarich",
+      "hardenedRuntime": true
     },
     "linux": {
       "target": [
@@ -73,10 +94,7 @@
         "deb"
       ],
       "category": "Utility",
-      "icon": "public/icons/icons/png/256x256.png",
-      "security": {
-        "enableSeccomp": true
-      }
+      "icon": "public/icons/icons/png/256x256.png"
     },
     "files": [
       "dist/**/*",
