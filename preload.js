@@ -24,9 +24,10 @@ const allowedChannels = {
   openExternalUrl: { type: 'send' },
   setHeaderHeight: { type: 'send' },
 
-  bvGoBack: { type: 'send' },
-  bvGoForward: { type: 'send' },
-  bvReload: { type: 'send' },
+  bvGoBack: { type: 'invoke' },
+  bvGoForward: { type: 'invoke' },
+  bvReload: { type: 'invoke' },
+  bvStopLoading: { type: 'invoke' },
   bvLoadUrl: { type: 'invoke' },
   bvDestroy: { type: 'send' },
   bvCreateTab: { type: 'invoke' },
@@ -49,6 +50,8 @@ const allowedListenChannels = [
   'tabFaviconUpdated',
   'tabUrlUpdated',
   'window:isMaximized',
+  'navigationStateChanged',
+  'loadProgress',
 ];
 
 const safeApi = {};

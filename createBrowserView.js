@@ -35,7 +35,7 @@ export default function createBrowserView(options = {}, win) {
     plugins: false,
     experimentalFeatures: false,
     cache: true,
-    javascript: true,
+    // javascript: true,
     images: true,
     textAreasAreResizable: false,
     webgl: true,

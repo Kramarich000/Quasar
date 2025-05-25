@@ -32,19 +32,19 @@ const POOL_SIZE = 25;
 const viewPool = [];
 const viewInUse = new Map();
 const faviconCache = new Map();
-const MAX_FAVICON_CACHE = 50; // Максимальное количество favicon в кэше
+const MAX_FAVICON_CACHE = 50; 
 let faviconSession;
+
+let suggestionsWindow = null;
 
 function setActiveView(view) {
   const old = getCurrentView();
   if (old && old !== view) {
-    // Оптимизируем старый view
     old.webContents.setBackgroundThrottling(true);
-    old.webContents.setFrameRate(5); // Снижаем FPS, но не до минимума
+    old.webContents.setFrameRate(5); 
     win.removeBrowserView(old);
   }
   win.setBrowserView(view);
-  // Восстанавливаем нормальную работу для активного view
   view.webContents.setBackgroundThrottling(false);
   view.webContents.setFrameRate(60);
 }
@@ -73,12 +73,20 @@ function attachViewListeners(view) {
     return;
   }
 
-  view.webContents.on('did-start-loading', () =>
-    win.webContents.send('bvDidStartLoading', view._tabId),
-  );
-  view.webContents.on('did-stop-loading', () =>
-    win.webContents.send('bvDidStopLoading', view._tabId),
-  );
+  view.webContents.on('did-start-loading', () => {
+    win.webContents.send('bvDidStartLoading', { tabId: view._tabId });
+    win.webContents.send('loadProgress', { progress: 0 });
+  });
+
+  view.webContents.on('did-progress', (_e, progress) => {
+    win.webContents.send('loadProgress', { progress });
+  });
+
+  view.webContents.on('did-stop-loading', () => {
+    win.webContents.send('bvDidStopLoading', { tabId: view._tabId });
+    win.webContents.send('loadProgress', { progress: 1 });
+  });
+
   view.webContents.on('ready-to-show', () =>
     win.webContents.send('bvDomReady', view._tabId),
   );
@@ -195,20 +203,33 @@ function attachViewListeners(view) {
       faviconSession.webRequest.onHeadersReceived(null);
     }
   });
-  view.webContents.on('did-navigate', (_e, url) =>
-    win.webContents.send('tabUrlUpdated', { id: view._tabId, url }),
-  );
-  view.webContents.on('did-navigate-in-page', (_e, url) =>
-    win.webContents.send('tabUrlUpdated', { id: view._tabId, url }),
-  );
+
+  view.webContents.on('did-navigate', (_e, url) => {
+    win.webContents.send('tabUrlUpdated', { id: view._tabId, url });
+    updateNavigationState(view);
+  });
+
+  view.webContents.on('did-navigate-in-page', (_e, url) => {
+    win.webContents.send('tabUrlUpdated', { id: view._tabId, url });
+    updateNavigationState(view);
+  });
 }
 
-// Функция для очистки старых favicon
+function updateNavigationState(view) {
+  if (!view || !view.webContents || view.webContents.isDestroyed()) return;
+  
+  const canGoBack = view.webContents.canGoBack();
+  const canGoForward = view.webContents.canGoForward();
+  
+  win.webContents.send('navigationStateChanged', {
+    canGoBack,
+    canGoForward
+  });
+}
+
 function cleanupFaviconCache() {
   if (faviconCache.size > MAX_FAVICON_CACHE) {
-    // Получаем все ключи и сортируем их по времени добавления
     const keys = Array.from(faviconCache.keys());
-    // Удаляем старые записи, оставляя только MAX_FAVICON_CACHE самых новых
     const keysToDelete = keys.slice(0, keys.length - MAX_FAVICON_CACHE);
     keysToDelete.forEach((key) => faviconCache.delete(key));
   }
@@ -350,7 +371,6 @@ function createWindow() {
         'FileSystemAccess',
         'MediaCapabilities',
         'WebCodecs',
-        'PinchZoom',
       ].join(','),
       enableAccelerated2dCanvas: true,
       webSecurity: true,
@@ -367,7 +387,7 @@ function createWindow() {
     },
   });
 
-  win.setMaxListeners(20);
+  win.setMaxListeners(0);
   win.once('ready-to-show', () => {
     win.show();
   });
@@ -382,18 +402,6 @@ function createWindow() {
       event.preventDefault();
     }
   });
-
-  // const resizeHandler = () => {
-  //   const v = getCurrentView();
-  //   if (!v) return;
-  //   const { width, height } = win.getContentBounds();
-  //   v.setBounds({
-  //     x: 0,
-  //     y: Math.floor(headerHeight),
-  //     width,
-  //     height: Math.floor(height - headerHeight),
-  //   });
-  // };
 
   function resizeAll() {
     for (const v of views.values()) {
@@ -429,7 +437,7 @@ function createWindow() {
 
   win.webContents.on('did-finish-load', () => {
     win.webContents.setZoomFactor(1);
-    win.webContents.setVisualZoomLevelLimits(1, 3);
+    win.webContents.setVisualZoomLevelLimits(1, 1); // Ограничиваем масштабирование для основного окна
   });
 
   // win.on('maximize', () => {
@@ -504,7 +512,6 @@ ipcMain.on('bvDestroy', (_event, tabId) => {
 
     if (activeTabId === tabId) {
       activeTabId = null;
-      // Здесь можно переключить на другую вкладку или скрыть BrowserView
     }
   }
 });
@@ -566,26 +573,34 @@ ipcMain.on('window:closeTab', async (_e, id) => {
 
 // --------- Работа с окнами ---------- //
 // 1. Назад
-ipcMain.on('window:bvGoBack', () => {
+ipcMain.handle('window:bvGoBack', async () => {
   const view = getCurrentView();
-  if (view && view.webContents.navigationHistory.canGoBack()) {
-    view.webContents.navigationHistory.goBack();
+  if (view && view.webContents.canGoBack()) {
+    view.webContents.goBack();
   }
 });
 
 // 2. Вперед
-ipcMain.on('window:bvGoForward', () => {
+ipcMain.handle('window:bvGoForward', async () => {
   const view = getCurrentView();
-  if (view && view.webContents.navigationHistory.canGoForward()) {
-    view.webContents.navigationHistory.goForward();
+  if (view && view.webContents.canGoForward()) {
+    view.webContents.goForward();
   }
 });
 
 // 3. Перезагрузка
-ipcMain.on('window:bvReload', () => {
+ipcMain.handle('window:bvReload', async () => {
   const view = getCurrentView();
   if (view) {
     view.webContents.reload();
+  }
+});
+
+// 4. Остановка загрузки
+ipcMain.handle('window:bvStopLoading', async () => {
+  const view = getCurrentView();
+  if (view) {
+    view.webContents.stop();
   }
 });
 
@@ -636,6 +651,8 @@ ipcMain.on('window:setHeaderHeight', (_event, newHeaderHeight) => {
 });
 
 // ------------ //
+
+
 
 // ---- Обновление ----- //
 
@@ -699,3 +716,58 @@ if (!gotLock) {
     if (process.platform !== 'darwin') app.quit();
   });
 }
+
+function createSuggestionsWindow() {
+    if (suggestionsWindow) {
+        suggestionsWindow.destroy();
+    }
+
+    suggestionsWindow = new BrowserWindow({
+        width: 400,
+        height: 300,
+        frame: false,
+        transparent: true,
+        alwaysOnTop: true,
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false
+        }
+    });
+
+    suggestionsWindow.loadFile('suggestions.html');
+    suggestionsWindow.setVisibleOnAllWorkspaces(true);
+    suggestionsWindow.setAlwaysOnTop(true, 'floating');
+    suggestionsWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    suggestionsWindow.setFocusable(false);
+    suggestionsWindow.setHasShadow(false);
+    suggestionsWindow.setBackgroundColor('#00000000');
+}
+
+ipcMain.on('showSuggestions', (event, { bounds, suggestions }) => {
+    if (!suggestionsWindow) {
+        createSuggestionsWindow();
+    }
+    
+    suggestionsWindow.setBounds(bounds);
+    suggestionsWindow.show();
+    suggestionsWindow.webContents.send('updateSuggestions', suggestions);
+});
+
+ipcMain.on('hideSuggestions', () => {
+    if (suggestionsWindow) {
+        suggestionsWindow.hide();
+    }
+});
+
+ipcMain.on('updateSuggestions', (event, suggestions) => {
+    if (suggestionsWindow) {
+        suggestionsWindow.webContents.send('updateSuggestions', suggestions);
+    }
+});
+
+ipcMain.on('suggestionSelected', (event, suggestion) => {
+    mainWindow.webContents.send('suggestionSelected', suggestion);
+    if (suggestionsWindow) {
+        suggestionsWindow.hide();
+    }
+});
