@@ -25,14 +25,19 @@
     "electron-squirrel-startup": "^1.0.1",
     "electron-updater": "^6.6.2",
     "framer-motion": "^12.12.1",
+    "gm": "^1.25.1",
+    "icojs": "^0.19.5",
+    "jimp": "^1.6.0",
     "lodash-es": "^4.17.21",
     "noisejs": "^2.1.0",
+    "png-to-ico": "^2.1.8",
     "react-beautiful-dnd": "^13.1.1",
     "react-dnd": "^16.0.1",
     "react-dnd-html5-backend": "^16.0.1",
     "react-icons": "^5.5.0",
     "react-router-dom": "^7.6.0",
     "react-tooltip": "^5.28.1",
+    "sharp": "^0.34.2",
     "tippy.js": "^6.3.7"
   },
   "build": {
@@ -103,7 +108,6 @@
       "icon": "public/icons/icons/png/256x256.png"
     },
     "files": [
-      "dist/**/*",
       "main.js",
       "preload.js",
       "src/build/*",
@@ -114,10 +118,7 @@
       "!**/*.DS_Store",
       "!**/*.gitignore"
     ],
-    "asar": true,
-    "directories": {
-      "buildResources": "dist"
-    }
+    "asar": true
   },
   "devDependencies": {
     "@electron/fuses": "^1.8.0",
