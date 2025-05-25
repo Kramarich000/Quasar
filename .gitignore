@@ -23,6 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 *.exe
-utils/*.bmp
+utils/
 
 out/
