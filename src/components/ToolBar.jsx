@@ -7,10 +7,27 @@ export default function ToolBar({ url, onChangeUrl }) {
   const [inputValue, setInputValue] = useState(url);
   const [suggestions, setSuggestions] = useState([]);
   const [isSuggestOpen, setIsSuggestOpen] = useState(false);
+  const [canGoBack, setCanGoBack] = useState(false);
+  const [canGoForward, setCanGoForward] = useState(false);
   const debounceRef = useRef(null);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const containerRef = useRef(null);
   const itemRefs = useRef([]);
+
+  useEffect(() => {
+    const handleNavigationStateChanged = ({
+      canGoBack: back,
+      canGoForward: forward,
+    }) => {
+      setCanGoBack(back);
+      setCanGoForward(forward);
+    };
+
+    window.api.on('navigationStateChanged', handleNavigationStateChanged);
+    return () => {
+      window.api.off('navigationStateChanged', handleNavigationStateChanged);
+    };
+  }, []);
 
   useEffect(() => {
     if (highlightedIndex !== -1 && itemRefs.current[highlightedIndex]) {
@@ -157,7 +174,10 @@ export default function ToolBar({ url, onChangeUrl }) {
         <button
           onClick={() => window.api.bvGoBack()}
           title="Назад"
-          className="!p-2 !transition-colors !rounded !bg-transparent hover:!bg-gray-700 !outline-none !border-none"
+          disabled={!canGoBack}
+          className={`!p-2 !transition-colors !rounded !bg-transparent hover:!bg-gray-700 !outline-none !border-none ${
+            !canGoBack ? 'opacity-50 cursor-not-allowed' : ''
+          }`}
         >
           <FaArrowLeft />
         </button>
@@ -165,7 +185,10 @@ export default function ToolBar({ url, onChangeUrl }) {
         <button
           onClick={() => window.api.bvGoForward()}
           title="Вперед"
-          className="!p-2 !transition-colors !rounded !bg-transparent hover:!bg-gray-700 !outline-none !border-none"
+          disabled={!canGoForward}
+          className={`!p-2 !transition-colors !rounded !bg-transparent hover:!bg-gray-700 !outline-none !border-none ${
+            !canGoForward ? 'opacity-50 cursor-not-allowed' : ''
+          }`}
         >
           <FaArrowRight />
         </button>
@@ -175,18 +198,7 @@ export default function ToolBar({ url, onChangeUrl }) {
           title="Обновить"
           className="!p-2 !transition-colors !rounded !bg-transparent hover:!bg-gray-700 !outline-none !border-none"
         >
-          {/* <motion.div
-            key={isReloading ? 'rotating' : 'stopped'}
-            initial={{ rotate: 0 }}
-            animate={{ rotate: isReloading ? 360 : 0 }}
-            transition={{
-              duration: 1,
-              repeat: isReloading ? Infinity : 0,
-              ease: 'linear',
-            }}
-          > */}
           <FaArrowRotateRight />
-          {/* </motion.div> */}
         </button>
         <div className="flex relative w-[100%] flex-col">
           <input
@@ -200,11 +212,6 @@ export default function ToolBar({ url, onChangeUrl }) {
               e.preventDefault();
               setIsSuggestOpen(suggestions.length > 0);
             }}
-            // onBlur={() => {
-            //   setTimeout(() => {
-            //     setIsSuggestOpen(false);
-            //   }, 100);
-            // }}
             onFocus={(e) => {
               e.target.select();
               e.stopPropagation();
@@ -212,7 +219,7 @@ export default function ToolBar({ url, onChangeUrl }) {
               setIsSuggestOpen(suggestions.length > 0);
             }}
             placeholder="Введите URL или запрос"
-            className="flex-1 z-101 bg-transparent placeholder-gray-400 !transition-colors px-3 py-1 rounded-[30px] border-2 border-gray-400 focus:!border-cyan-700 focus:outline-none relative "
+            className="flex-1 z-101 bg-transparent placeholder-gray-400 !transition-colors px-3 py-1 rounded-[30px] border-b-2 border-gray-400 focus:!border-cyan-700 focus:outline-none relative "
             spellCheck={false}
           />
 
@@ -243,14 +250,6 @@ export default function ToolBar({ url, onChangeUrl }) {
             </ul>
           )}
         </div>
-
-        {/* <button
-          onClick={navigate}
-          title="Перейти"
-          className="!p-2 !transition-colors !rounded !bg-transparent hover:!bg-gray-700 !outline-none !border-none"
-        >
-          <FaSearch />
-        </button> */}
       </div>
     </div>
   );

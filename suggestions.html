@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Suggestions</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: transparent;
+            overflow: hidden;
+        }
+        #suggestions {
+            background: #2b2b2b;
+            border-radius: 4px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+            max-height: 300px;
+            overflow-y: auto;
+            width: 100%;
+        }
+        .suggestion-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .suggestion-item:hover {
+            background: #3a3a3a;
+        }
+        .suggestion-item.selected {
+            background: #3a3a3a;
+        }
+        .suggestion-icon {
+            width: 16px;
+            height: 16px;
+            opacity: 0.7;
+        }
+        .suggestion-text {
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+    </style>
+</head>
+<body>
+    <div id="suggestions"></div>
+    <script>
+        const { ipcRenderer } = require('electron');
+        let selectedIndex = -1;
+
+        function createSuggestionElement(suggestion) {
+            const div = document.createElement('div');
+            div.className = 'suggestion-item';
+            
+            const icon = document.createElement('img');
+            icon.className = 'suggestion-icon';
+            icon.src = suggestion.icon || 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmZmZmYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48Y2lyY2xlIGN4PSIxMSIgY3k9IjExIiByPSI4Ij48L2NpcmNsZT48bGluZSB4MT0iMjEiIHkxPSIyMSIgeDI9IjE2LjY1IiB5Mj0iMTYuNjUiPjwvbGluZT48L3N2Zz4=';
+            
+            const text = document.createElement('div');
+            text.className = 'suggestion-text';
+            text.textContent = suggestion.text;
+            
+            div.appendChild(icon);
+            div.appendChild(text);
+            
+            div.addEventListener('click', () => {
+                ipcRenderer.send('suggestionSelected', suggestion);
+            });
+            
+            return div;
+        }
+
+        function updateSuggestions(suggestions) {
+            const container = document.getElementById('suggestions');
+            container.innerHTML = '';
+            selectedIndex = -1;
+            
+            suggestions.forEach(suggestion => {
+                container.appendChild(createSuggestionElement(suggestion));
+            });
+        }
+
+        function selectNext() {
+            const items = document.querySelectorAll('.suggestion-item');
+            if (items.length === 0) return;
+            
+            selectedIndex = (selectedIndex + 1) % items.length;
+            updateSelection();
+        }
+
+        function selectPrevious() {
+            const items = document.querySelectorAll('.suggestion-item');
+            if (items.length === 0) return;
+            
+            selectedIndex = (selectedIndex - 1 + items.length) % items.length;
+            updateSelection();
+        }
+
+        function updateSelection() {
+            const items = document.querySelectorAll('.suggestion-item');
+            items.forEach((item, index) => {
+                item.classList.toggle('selected', index === selectedIndex);
+            });
+        }
+
+        function selectCurrent() {
+            const items = document.querySelectorAll('.suggestion-item');
+            if (selectedIndex >= 0 && selectedIndex < items.length) {
+                items[selectedIndex].click();
+            }
+        }
+
+        ipcRenderer.on('updateSuggestions', (event, suggestions) => {
+            updateSuggestions(suggestions);
+        });
+
+        ipcRenderer.on('selectNext', () => {
+            selectNext();
+        });
+
+        ipcRenderer.on('selectPrevious', () => {
+            selectPrevious();
+        });
+
+        ipcRenderer.on('selectCurrent', () => {
+            selectCurrent();
+        });
+
+        // Handle window resize
+        ipcRenderer.on('resize', (event, bounds) => {
+            document.body.style.width = `${bounds.width}px`;
+            document.body.style.height = `${bounds.height}px`;
+        });
+    </script>
+</body>
+</html> 

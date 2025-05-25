@@ -180,6 +180,23 @@ export default function App() {
     }
   };
 
+  const reorderTabs = (draggedId, targetId) => {
+    setTabs((prevTabs) => {
+      const draggedIndex = prevTabs.findIndex((tab) => tab.id === draggedId);
+      const targetIndex = prevTabs.findIndex((tab) => tab.id === targetId);
+
+      if (draggedIndex === -1 || targetIndex === -1) return prevTabs;
+
+      const newTabs = [...prevTabs];
+      [newTabs[draggedIndex], newTabs[targetIndex]] = [
+        newTabs[targetIndex],
+        newTabs[draggedIndex],
+      ];
+
+      return newTabs;
+    });
+  };
+
   return (
     <div className="flex flex-col !h-full !w-full">
       <div className="header-bar relative">
@@ -189,6 +206,7 @@ export default function App() {
           onAddTab={addTab}
           onCloseTab={closeTab}
           onSelectTab={selectTab}
+          onTabReorder={reorderTabs}
           favicons={favicons}
           isSecure={isSecure}
         />

@@ -16,6 +16,9 @@
     "release": "npm run build && electron-builder --publish always"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
     "@tippyjs/react": "^4.2.6",
     "electron-context-menu": "^4.0.5",
     "electron-devtools-installer": "^4.0.0",
@@ -23,11 +26,13 @@
     "electron-updater": "^6.6.2",
     "framer-motion": "^12.12.1",
     "lodash-es": "^4.17.21",
+    "noisejs": "^2.1.0",
     "react-beautiful-dnd": "^13.1.1",
+    "react-dnd": "^16.0.1",
+    "react-dnd-html5-backend": "^16.0.1",
     "react-icons": "^5.5.0",
     "react-router-dom": "^7.6.0",
     "react-tooltip": "^5.28.1",
-    "sharp": "^0.34.2",
     "tippy.js": "^6.3.7"
   },
   "build": {
@@ -43,6 +48,7 @@
       }
     ],
     "win": {
+      "artifactName": "${productName}-Setup-${version}.${ext}",
       "target": [
         {
           "target": "nsis-web",
@@ -51,33 +57,33 @@
           ]
         }
       ],
-      "nsis": {
-        "installerIcon": "public/icons/icons/win/icon.ico",
-        "uninstallerIcon": "public/icons/icons/win/icon.ico",
-        "installerHeaderImageSpace": 0,
-        "oneClick": false,
-        "allowToChangeInstallationDirectory": true,
-        "createDesktopShortcut": "always",
-        "createStartMenuShortcut": true,
-        "shortcutName": "Quasar",
-        "deleteStartMenuShortcut": true,
-        "runAfterFinish": true,
-        "enableUninstallLog": true,
-        "fontFace": "Segoe UI",
-        "fontSizes": {
-          "header": 14,
-          "text": 12,
-          "link": 10
-        },
-        "backgroundColor": "#424242",
-        "textColor": "#FFFFFF",
-        "headingTextColor": "#FFFFFF",
-        "outputBaseFilename": "Quasar",
-        "onFailure": "log",
-        "includeModernUI": true,
-        "includeMUI": true
-      },
       "icon": "public/icons/icons/win/icon.ico"
+    },
+    "nsisWeb": {
+      "installerIcon": "public/icons/icons/win/icon.ico",
+      "uninstallerIcon": "public/icons/icons/win/icon.ico",
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "displayLanguageSelector": true,
+      "shortcutName": "Quasar",
+      "warningsAsErrors": false,
+      "runAfterFinish": true,
+      "perMachine": false,
+      "include": "src/build/installer.nsh",
+      "installerLanguages": [
+        "en",
+        "es",
+        "zh_CN",
+        "ar",
+        "pt",
+        "ru",
+        "de",
+        "fr",
+        "ja",
+        "ko"
+      ]
     },
     "mac": {
       "icon": "public/icons/icons/mac/icon.icns",
@@ -100,6 +106,7 @@
       "dist/**/*",
       "main.js",
       "preload.js",
+      "src/build/*",
       "createBrowserView.js",
       "!**/*.test.js",
       "!node_modules",
