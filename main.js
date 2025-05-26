@@ -24,6 +24,8 @@ let activeWindow = null;
 
 let win = null;
 
+let modal = null;
+
 let headerHeight = 84.86;
 const DEFAULT_WIDTH = 1200;
 const DEFAULT_HEIGHT = 900;
@@ -980,7 +982,7 @@ autoUpdater.on('update-available', (info) =>
 autoUpdater.on('update-downloaded', async (info) => {
   console.log('Обновление скачано:', info);
 
-  const modal = new BrowserWindow({
+  modal = new BrowserWindow({
     width: 500,
     height: 400,
     modal: true,

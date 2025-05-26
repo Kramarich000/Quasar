@@ -83,7 +83,9 @@
 
         function updateSuggestions(suggestions) {
             const container = document.getElementById('suggestions');
-            container.innerHTML = '';
+            while (container.firstChild) {
+                container.removeChild(container.firstChild);
+            }
             selectedIndex = -1;
 
             suggestions.forEach(suggestion => {
