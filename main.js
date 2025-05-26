@@ -993,7 +993,7 @@ autoUpdater.on('update-downloaded', async (info) => {
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
-      preload: path.join(__dirname, 'preload-update.js'),
+      preload: join(__dirname, 'preload.js'),
     },
   });
 
