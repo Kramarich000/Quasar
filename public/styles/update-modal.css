@@ -87,7 +87,10 @@ button {
     width: 200px;
 }
 
-button:hover {
+button:hover,
+button:focus,
+button:focus-within {
     background-color: #42424277;
     transform: scale(1.05);
+    outline: none;
 }

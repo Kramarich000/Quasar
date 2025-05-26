@@ -987,8 +987,8 @@ autoUpdater.on('update-downloaded', async (info) => {
     title: 'Обновление',
     height: 400,
     modal: true,
-    resizable: false,
     parent: win,
+    devTools: false,
     show: false,
     backgroundColor: '#1e293b',
     frame: false,
@@ -997,6 +997,7 @@ autoUpdater.on('update-downloaded', async (info) => {
     skipTaskbar: true,
     minimizable: false,
     maximizable: false,
+    autoHideMenuBar: true,
     alwaysOnTop: true,
     webPreferences: {
       contextIsolation: true,
@@ -1005,6 +1006,8 @@ autoUpdater.on('update-downloaded', async (info) => {
     },
   });
 
+  modal.setMenu(null);
+  modal.setResizable(false);
   modal.loadFile(join(__dirname, 'dist', 'update-modal.html'));
 
   modal.once('ready-to-show', () => {
@@ -1028,14 +1031,27 @@ autoUpdater.on('error', (err) => console.error('Ошибка обновлени�
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 function openFakeUpdateModal() {
-  const modal = new BrowserWindow({
-    width: 480,
-    height: 580,
-    show: false,
+  modal = new BrowserWindow({
+    width: 500,
+    title: 'Обновление',
+    height: 400,
     modal: true,
-    parent: BrowserWindow.getFocusedWindow(),
+    parent: win,
+    devTools: false,
+    show: false,
+    backgroundColor: '#1e293b',
+    frame: false,
+    resizable: false,
+    // center: true,
+    skipTaskbar: true,
+    minimizable: false,
+    maximizable: false,
+    autoHideMenuBar: true,
+    // alwaysOnTop: true,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      preload: join(__dirname, 'preload.js'),
     },
   });
 
@@ -1055,8 +1071,6 @@ function openFakeUpdateModal() {
     modal.webContents.send('onUpdateInfo', fakeUpdateInfo);
     modal.show();
   });
-
-  modal.webContents.openDevTools(); // для отладки, потом убери
 }
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
@@ -1078,7 +1092,7 @@ if (!gotLock) {
     autoUpdater.checkForUpdatesAndNotify();
     // setTimeout(() => autoUpdater.checkForUpdatesAndNotify(), 2000);
     createWindow();
-    openFakeUpdateModal();
+    // openFakeUpdateModal();
     faviconSession = session.defaultSession;
     // setTimeout(() => initViewPool(), 1000);
     initViewPool();
