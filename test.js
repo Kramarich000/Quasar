@@ -5,3 +5,5 @@
 // const __dirname = dirname(__filename);
 
 // console.log('Test preload path:', join(__dirname, 'preload.js'));
+
+console.log('ivan');
