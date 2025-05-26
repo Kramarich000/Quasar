@@ -76,7 +76,6 @@
       "warningsAsErrors": false,
       "runAfterFinish": true,
       "perMachine": false,
-      "include": "src/build/installer.nsh",
       "installerLanguages": [
         "en",
         "es",
@@ -88,7 +87,10 @@
         "fr",
         "ja",
         "ko"
-      ]
+      ],
+      "license": "./LICENSE.txt",
+      "menuCategory": "Quasar",
+      "deleteAppDataOnUninstall": true
     },
     "afterPack": "prune-locales.js",
     "mac": {

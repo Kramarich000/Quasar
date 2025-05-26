@@ -1,24 +1,27 @@
-ЛИЦЕНЗИОННОЕ СОГЛАШЕНИЕ
+END USER LICENSE AGREEMENT
 
-Автор: Kramarich
-Год: 2025
+Author: Kramarich  
+Year:   2025
 
-1. ОБЩИЕ ПОЛОЖЕНИЯ
-   1.1. Настоящее лицензионное соглашение регулирует использование программного обеспечения.
-   1.2. Использование программы означает согласие с условиями лицензии.
+1. Grant of License  
+   1.1. The Author hereby grants you, the End User, a non-exclusive, non-transferable license to use this software on a single computer.  
+   1.2. This license allows you to install and run the software in executable form only.
 
-2. ПРАВА НА ИСПОЛЬЗОВАНИЕ
-   2.1. Вы можете свободно использовать программу в некоммерческих целях.
-   2.2. Коммерческое использование разрешено только с письменного разрешения автора.
-   2.3. Модификация и распространение программы возможны при сохранении авторских прав.
+2. Restrictions  
+   2.1. You may not modify, adapt, translate, or create derivative works of the software.  
+   2.2. You may not reverse-engineer, decompile, or disassemble the software, except to the extent expressly permitted by applicable law.  
+   2.3. You may not rent, lease, sublicense, or otherwise distribute the software to any third party.
 
-3. ОТВЕТСТВЕННОСТЬ
-   3.1. Автор не несет ответственности за ущерб, возникший при использовании программы.
-   3.2. Программа предоставляется "как есть" без гарантий.
+3. Disclaimer of Warranty  
+   3.1. The software is provided вЂњAS ISвЂќ without warranty of any kind. The Author disclaims all warranties, whether express, implied, statutory or otherwise.  
+   3.2. In no event shall the AuthorвЂ™s total liability to you for all damages (whether in contract, tort, or otherwise) exceed the amount you paid for this license.
 
-4. ДОПОЛНИТЕЛЬНЫЕ УСЛОВИЯ
-   4.1. Запрещено использование программы в нелегальных целях.
-   4.2. Все изменения программы должны быть явно обозначены.
+4. Support and Updates  
+   4.1. The Author may, at their sole discretion, provide you with support or updates for the software.  
+   4.2. The Author is under no obligation to provide any support, correction of errors, or future releases.
 
-5. ЗАКЛЮЧИТЕЛЬНЫЕ ПОЛОЖЕНИЯ
-   5.1. Лицензия вступает в силу с момента установки программы и действует бессрочно.
+5. Termination  
+   5.1. This license is effective until terminated. It will terminate automatically without notice if you fail to comply with any provision of this Agreement.  
+   5.2. Upon termination, you must cease all use of the software and destroy all copies in your possession.
+
+By clicking вЂњI AgreeвЂќ or installing the software, you acknowledge that you have read this Agreement, understand it, and agree to be bound by its terms.  

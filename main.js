@@ -61,7 +61,7 @@ function getCurrentView() {
 
   const views = activeWindow === mainWindow ? mainViews : incognitoViews;
   const view = views.get(activeTabId);
-  
+
   if (!view) return null;
   try {
     if (view.webContents && !view.webContents.isDestroyed()) {
@@ -92,7 +92,7 @@ function setActiveView(view) {
       console.warn('Failed to remove old view:', err);
     }
   }
-  
+
   try {
     activeWindow.setBrowserView(view);
     updateViewBounds(view);
@@ -112,7 +112,7 @@ function updateViewBounds(view) {
     console.warn('updateViewBounds: No valid focused window');
     return;
   }
-  
+
   try {
     const { width, height } = currentWindow.getContentBounds();
     const bounds = {
@@ -121,12 +121,14 @@ function updateViewBounds(view) {
       width,
       height: Math.floor(height - headerHeight),
     };
-    
+
     // Проверяем, что размеры действительно изменились
     const currentBounds = view.getBounds();
-    if (currentBounds.width !== bounds.width || 
-        currentBounds.height !== bounds.height ||
-        currentBounds.y !== bounds.y) {
+    if (
+      currentBounds.width !== bounds.width ||
+      currentBounds.height !== bounds.height ||
+      currentBounds.y !== bounds.y
+    ) {
       view.setBounds(bounds);
     }
   } catch (err) {
@@ -137,7 +139,7 @@ function updateViewBounds(view) {
 function resizeAll() {
   const currentWindow = BrowserWindow.getFocusedWindow();
   if (!currentWindow) return;
-  
+
   const views = currentWindow === mainWindow ? mainViews : incognitoViews;
   for (const view of views.values()) {
     if (view) {
@@ -291,15 +293,21 @@ function attachViewListeners(view) {
     }
   });
 
-  view.webContents.on('did-navigate', (_e, url) => {
-    win.webContents.send('tabUrlUpdated', { id: view._tabId, url });
-    updateNavigationState(view);
-  });
+  if (view.webContents) {
+    view.webContents.on('did-navigate', (_e, url) => {
+      if (win?.webContents?.send) {
+        win.webContents.send('tabUrlUpdated', { id: view._tabId, url });
+      }
+      updateNavigationState(view);
+    });
 
-  view.webContents.on('did-navigate-in-page', (_e, url) => {
-    win.webContents.send('tabUrlUpdated', { id: view._tabId, url });
-    updateNavigationState(view);
-  });
+    view.webContents.on('did-navigate-in-page', (_e, url) => {
+      if (win?.webContents?.send) {
+        win.webContents.send('tabUrlUpdated', { id: view._tabId, url });
+      }
+      updateNavigationState(view);
+    });
+  }
 }
 
 function updateNavigationState(view) {
@@ -476,7 +484,7 @@ function createWindow() {
   function resizeAll() {
     const currentWindow = BrowserWindow.getFocusedWindow();
     if (!currentWindow) return;
-    
+
     const views = currentWindow === mainWindow ? mainViews : incognitoViews;
     for (const view of views.values()) {
       if (view) {
@@ -548,7 +556,7 @@ function createIncognitoWindow() {
     incognitoWindow.focus();
     return;
   }
-  
+
   incognitoWindow = new BrowserWindow({
     frame: false,
     width: DEFAULT_WIDTH,
@@ -599,7 +607,7 @@ function createIncognitoWindow() {
   function resizeAll() {
     const currentWindow = BrowserWindow.getFocusedWindow();
     if (!currentWindow || currentWindow.isDestroyed()) return;
-    
+
     const views = currentWindow === mainWindow ? mainViews : incognitoViews;
     for (const view of views.values()) {
       if (!view) continue;
@@ -630,7 +638,7 @@ function createIncognitoWindow() {
     'unmaximize',
     'restore',
     'move',
-    'moved'
+    'moved',
   ].forEach((evt) => {
     incognitoWindow.on(evt, () => {
       // Принудительно вызываем ресайз без дебаунса для критических событий
@@ -696,7 +704,7 @@ ipcMain.handle('window:createIncognitoWindow', async () => {
     incognitoWindow.focus();
     return;
   }
-  
+
   createIncognitoWindow();
   if (mainWindow) {
     mainWindow.blur();
@@ -771,17 +779,17 @@ ipcMain.handle('window:bvCreateTab', async (_e, { id, url }) => {
   }
 
   const views = currentWindow === mainWindow ? mainViews : incognitoViews;
-  
+
   if (views.has(id)) {
     return { success: false, error: 'Tab already exists' };
   }
-  
+
   try {
     const view = await acquireView(id);
     if (!view) {
       return { success: false, error: 'Failed to create view' };
     }
-    
+
     views.set(id, view);
     activeTabId = activeTabId ?? id;
     setActiveView(view);
@@ -803,26 +811,26 @@ ipcMain.handle('window:bvCreateTab', async (_e, { id, url }) => {
 // 2. Смена таба //
 ipcMain.handle('window:bvSwitchTab', (_e, id) => {
   if (id === activeTabId) return;
-  
+
   const currentWindow = BrowserWindow.getFocusedWindow();
   if (!currentWindow || currentWindow.isDestroyed()) {
     console.warn('bvSwitchTab: No valid focused window');
     return;
   }
-  
+
   const views = currentWindow === mainWindow ? mainViews : incognitoViews;
   if (!views.has(id)) {
     console.warn('bvSwitchTab: Tab not found');
     return;
   }
-  
+
   try {
     const newV = views.get(id);
     if (!newV || !newV.webContents || newV.webContents.isDestroyed()) {
       console.warn('bvSwitchTab: Invalid view');
       return;
     }
-    
+
     setActiveView(newV);
     activeTabId = id;
     currentWindow.webContents.send('tabSwitched', id);
@@ -838,14 +846,14 @@ ipcMain.on('window:closeTab', async (_e, id) => {
     console.warn('closeTab: No valid focused window');
     return;
   }
-  
+
   const views = currentWindow === mainWindow ? mainViews : incognitoViews;
   const view = views.get(id);
   if (!view) {
     console.warn('closeTab: Tab not found');
     return;
   }
-  
+
   try {
     views.delete(id);
     if (activeTabId === id) activeTabId = null;
@@ -923,7 +931,7 @@ ipcMain.on('window:close', (event) => {
 ipcMain.handle('window:toggleMaximize', (event) => {
   const window = BrowserWindow.fromWebContents(event.sender);
   if (!window) return false;
-  
+
   if (window.isMaximized()) {
     window.unmaximize();
     return false;
@@ -950,7 +958,10 @@ ipcMain.on('window:setHeaderHeight', (_event, newHeaderHeight) => {
         updateViewBounds(view);
       }
     } catch (err) {
-      console.warn('Failed to update view bounds after header height change:', err);
+      console.warn(
+        'Failed to update view bounds after header height change:',
+        err,
+      );
     }
   }
 });
