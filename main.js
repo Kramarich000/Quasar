@@ -18,14 +18,20 @@ const isDev =
   process.env.NODE_ENV === 'development' ||
   !existsSync(join(__dirname, 'dist', 'index.html'));
 
-let win;
+let mainWindow;
+let incognitoWindow;
+let activeWindow = null;
+
+let win = null;
+
 let headerHeight = 84.86;
 const DEFAULT_WIDTH = 1200;
 const DEFAULT_HEIGHT = 900;
 const MIN_WIDTH = 800;
 const MIN_HEIGHT = 800;
 
-const views = new Map();
+const mainViews = new Map();
+const incognitoViews = new Map();
 let activeTabId = null;
 
 const POOL_SIZE = 25;
@@ -37,26 +43,107 @@ let faviconSession;
 
 let suggestionsWindow = null;
 
+function setActiveWindow(window) {
+  if (!window || window.isDestroyed()) {
+    console.warn('setActiveWindow: Invalid window');
+    return;
+  }
+  activeWindow = window;
+  win = window;
+}
+
+function getCurrentView() {
+  if (!activeTabId) return null;
+  if (!activeWindow || activeWindow.isDestroyed()) {
+    console.warn('getCurrentView: No valid active window');
+    return null;
+  }
+
+  const views = activeWindow === mainWindow ? mainViews : incognitoViews;
+  const view = views.get(activeTabId);
+  
+  if (!view) return null;
+  try {
+    if (view.webContents && !view.webContents.isDestroyed()) {
+      return view;
+    }
+  } catch (err) {
+    console.warn('View validation failed:', err);
+  }
+  return null;
+}
+
 function setActiveView(view) {
+  if (!view) {
+    console.warn('setActiveView: view is null');
+    return;
+  }
+
+  if (!activeWindow || activeWindow.isDestroyed()) {
+    console.warn('setActiveView: No valid active window');
+    return;
+  }
+
   const old = getCurrentView();
   if (old && old !== view) {
-    old.webContents.setBackgroundThrottling(true);
-    old.webContents.setFrameRate(5);
-    win.removeBrowserView(old);
+    try {
+      activeWindow.removeBrowserView(old);
+    } catch (err) {
+      console.warn('Failed to remove old view:', err);
+    }
   }
-  win.setBrowserView(view);
-  view.webContents.setBackgroundThrottling(false);
-  view.webContents.setFrameRate(60);
+  
+  try {
+    activeWindow.setBrowserView(view);
+    updateViewBounds(view);
+  } catch (err) {
+    console.warn('Failed to set new view:', err);
+  }
 }
 
 function updateViewBounds(view) {
-  const { width, height } = win.getContentBounds();
-  view.setBounds({
-    x: 0,
-    y: Math.floor(headerHeight),
-    width,
-    height: Math.floor(height - headerHeight),
-  });
+  if (!view) {
+    console.warn('updateViewBounds: view is null');
+    return;
+  }
+
+  const currentWindow = BrowserWindow.getFocusedWindow();
+  if (!currentWindow || currentWindow.isDestroyed()) {
+    console.warn('updateViewBounds: No valid focused window');
+    return;
+  }
+  
+  try {
+    const { width, height } = currentWindow.getContentBounds();
+    const bounds = {
+      x: 0,
+      y: Math.floor(headerHeight),
+      width,
+      height: Math.floor(height - headerHeight),
+    };
+    
+    // Проверяем, что размеры действительно изменились
+    const currentBounds = view.getBounds();
+    if (currentBounds.width !== bounds.width || 
+        currentBounds.height !== bounds.height ||
+        currentBounds.y !== bounds.y) {
+      view.setBounds(bounds);
+    }
+  } catch (err) {
+    console.warn('Failed to update view bounds:', err);
+  }
+}
+
+function resizeAll() {
+  const currentWindow = BrowserWindow.getFocusedWindow();
+  if (!currentWindow) return;
+  
+  const views = currentWindow === mainWindow ? mainViews : incognitoViews;
+  for (const view of views.values()) {
+    if (view) {
+      updateViewBounds(view);
+    }
+  }
 }
 
 const debounce = (fn, ms) => {
@@ -237,7 +324,7 @@ function cleanupFaviconCache() {
 
 async function createPooledView(poolId) {
   const partition = `persist:pool-${poolId}`;
-  const tabSession = session.fromPartition(partition, { cache: false });
+  const tabSession = session.fromPartition(partition, { cache: true });
   const view = createBrowserView({
     webPreferences: {
       contextIsolation: true,
@@ -260,7 +347,11 @@ async function createPooledView(poolId) {
 
   const tpl = join(__dirname, 'dist', 'tab-content.html');
   if (existsSync(tpl)) {
-    await view.webContents.loadFile(tpl);
+    try {
+      await view.webContents.loadFile(tpl);
+    } catch (err) {
+      console.warn('Failed to load tab-content.html:', err);
+    }
   }
 
   viewInUse.set(view, false);
@@ -321,7 +412,7 @@ async function releaseView(view) {
       }),
     ]);
     await view.webContents.loadURL('about:blank');
-    console.log('adasdasdadadasdasd');
+    // console.log('adasdasdadadasdasd');
     const tpl = join(__dirname, 'dist', 'tab-content.html');
     if (existsSync(tpl)) {
       await view.webContents.loadFile(tpl);
@@ -335,15 +426,8 @@ async function releaseView(view) {
   }
 }
 
-function getCurrentView() {
-  if (!activeTabId) return null;
-  return views.get(activeTabId) || null;
-}
-
 function createWindow() {
-  // const { width, height } = screen.getPrimaryDisplay().workAreaSize;
-
-  win = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     frame: false,
     width: DEFAULT_WIDTH,
     height: DEFAULT_HEIGHT,
@@ -356,7 +440,7 @@ function createWindow() {
       partition: 'persist:browser',
       preload: join(__dirname, 'preload.js'),
       contextIsolation: true,
-      devTools: false,
+      devTools: true,
       nodeIntegration: false,
       webviewTag: false,
       sandbox: true,
@@ -387,25 +471,17 @@ function createWindow() {
     },
   });
 
-  win.setMaxListeners(0);
-  win.once('ready-to-show', () => {
-    win.show();
-  });
-
-  win.webContents.on('before-input-event', (event, input) => {
-    if (
-      input.type === 'keyDown' &&
-      input.control &&
-      input.shift &&
-      input.code === 'keyI'
-    ) {
-      event.preventDefault();
-    }
-  });
+  setActiveWindow(mainWindow);
 
   function resizeAll() {
-    for (const v of views.values()) {
-      updateViewBounds(v);
+    const currentWindow = BrowserWindow.getFocusedWindow();
+    if (!currentWindow) return;
+    
+    const views = currentWindow === mainWindow ? mainViews : incognitoViews;
+    for (const view of views.values()) {
+      if (view) {
+        updateViewBounds(view);
+      }
     }
   }
 
@@ -417,50 +493,215 @@ function createWindow() {
     'leave-full-screen',
     'maximize',
     'unmaximize',
-  ].forEach((evt) => win.on(evt, debouncedResizeAll));
+  ].forEach((evt) => mainWindow.on(evt, debouncedResizeAll));
 
-  win.on('focus', () => {
+  mainWindow.on('focus', () => {
+    setActiveWindow(mainWindow);
     const view = getCurrentView();
     if (view) {
-      view.webContents.setBackgroundThrottling(false);
-      view.webContents.setFrameRate(60);
+      setActiveView(view);
     }
   });
 
-  win.on('blur', () => {
-    const view = getCurrentView();
-    if (view) {
-      view.webContents.setBackgroundThrottling(true);
-      view.webContents.setFrameRate(5);
+  mainWindow.on('blur', () => {
+    // Remove background throttling
+  });
+
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show();
+    mainWindow.focus();
+  });
+
+  mainWindow.webContents.on('did-finish-load', () => {
+    if (mainWindow.webContents) {
+      mainWindow.webContents.setZoomFactor(1);
+      mainWindow.webContents.setVisualZoomLevelLimits(1, 1);
     }
   });
 
-  win.webContents.on('did-finish-load', () => {
-    win.webContents.setZoomFactor(1);
-    win.webContents.setVisualZoomLevelLimits(1, 1); // Ограничиваем масштабирование для основного окна
+  mainWindow.on('maximize', () => {
+    mainWindow.webContents.send('window:isMaximized', true);
   });
 
-  // win.on('maximize', () => {
-  //   win.webContents.send('window:isMaximized', true);
-  // });
-
-  // win.on('unmaximize', () => {
-  //   win.webContents.send('window:isMaximized', false);
-  // });
-
-  win.on('closed', () => {
-    win = null;
+  mainWindow.on('unmaximize', () => {
+    mainWindow.webContents.send('window:isMaximized', false);
   });
-  // win.webContents.openDevTools({ mode: 'detach' });
+
+  mainWindow.on('closed', () => {
+    if (activeWindow === mainWindow) {
+      activeWindow = null;
+      win = null;
+    }
+  });
+
+  mainWindow.webContents.openDevTools({ mode: 'detach' });
 
   if (isDev) {
-    win.loadFile(join(__dirname, 'dist', 'index.html'));
-    // win.loadURL('http://localhost:5173');
+    mainWindow.loadFile(join(__dirname, 'dist', 'index.html'));
   } else {
-    // win.loadURL('http://localhost:5173');
-    win.loadFile(join(__dirname, 'dist', 'index.html'));
+    mainWindow.loadFile(join(__dirname, 'dist', 'index.html'));
   }
 }
+
+function createIncognitoWindow() {
+  if (incognitoWindow && !incognitoWindow.isDestroyed()) {
+    incognitoWindow.focus();
+    return;
+  }
+  
+  incognitoWindow = new BrowserWindow({
+    frame: false,
+    width: DEFAULT_WIDTH,
+    height: DEFAULT_HEIGHT,
+    minWidth: MIN_WIDTH,
+    minHeight: MIN_HEIGHT,
+    transparent: false,
+    backgroundColor: '#FFFFFF',
+    show: false,
+    webPreferences: {
+      partition: 'temp:incognito-' + Date.now(),
+      preload: join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      devTools: true,
+      nodeIntegration: false,
+      webviewTag: false,
+      sandbox: true,
+      offscreen: false,
+      scrollBounce: true,
+      experimentalFeatures: false,
+      enableWebGL: true,
+      backgroundThrottling: false,
+      hardwareAcceleration: true,
+      enableBlinkFeatures: [
+        'PictureInPicture',
+        'FileSystemAccess',
+        'MediaCapabilities',
+        'WebCodecs',
+      ].join(','),
+      enableAccelerated2dCanvas: true,
+      webSecurity: true,
+      allowRunningInsecureContent: false,
+      disableHtmlFullscreenWindowResize: true,
+      enableAcceleratedLayers: true,
+      enableAcceleratedVideo: true,
+      enableAcceleratedVideoDecode: true,
+      enableAcceleratedVideoEncode: true,
+      enableAcceleratedCompositing: true,
+      spellcheck: false,
+      plugins: false,
+      cache: true,
+      additionalArguments: ['--incognito'],
+    },
+  });
+
+  setActiveWindow(incognitoWindow);
+
+  function resizeAll() {
+    const currentWindow = BrowserWindow.getFocusedWindow();
+    if (!currentWindow || currentWindow.isDestroyed()) return;
+    
+    const views = currentWindow === mainWindow ? mainViews : incognitoViews;
+    for (const view of views.values()) {
+      if (!view) continue;
+      try {
+        if (view.webContents && !view.webContents.isDestroyed()) {
+          const { width, height } = currentWindow.getContentBounds();
+          view.setBounds({
+            x: 0,
+            y: Math.floor(headerHeight),
+            width,
+            height: Math.floor(height - headerHeight),
+          });
+        }
+      } catch (err) {
+        console.warn('Failed to resize view:', err);
+      }
+    }
+  }
+
+  const debouncedResizeAll = debounce(resizeAll, 20);
+
+  // Добавляем обработчики для всех событий изменения размера
+  [
+    'resize',
+    'enter-full-screen',
+    'leave-full-screen',
+    'maximize',
+    'unmaximize',
+    'restore',
+    'move',
+    'moved'
+  ].forEach((evt) => {
+    incognitoWindow.on(evt, () => {
+      // Принудительно вызываем ресайз без дебаунса для критических событий
+      if (evt === 'maximize' || evt === 'unmaximize' || evt === 'restore') {
+        resizeAll();
+      } else {
+        debouncedResizeAll();
+      }
+    });
+  });
+
+  // Добавляем обработчик изменения размера контента
+  incognitoWindow.webContents.on('did-finish-load', () => {
+    resizeAll();
+  });
+
+  // Добавляем обработчик изменения размера при фокусе
+  incognitoWindow.on('focus', () => {
+    setActiveWindow(incognitoWindow);
+    const view = getCurrentView();
+    if (view) {
+      setActiveView(view);
+      resizeAll(); // Принудительно обновляем размеры при фокусе
+    }
+  });
+
+  incognitoWindow.on('blur', () => {
+    // Remove background throttling
+  });
+
+  incognitoWindow.once('ready-to-show', () => {
+    incognitoWindow.show();
+    incognitoWindow.focus();
+  });
+
+  incognitoWindow.webContents.on('did-finish-load', () => {
+    if (incognitoWindow.webContents) {
+      incognitoWindow.webContents.setZoomFactor(1);
+      incognitoWindow.webContents.setVisualZoomLevelLimits(1, 1);
+    }
+  });
+
+  incognitoWindow.on('closed', () => {
+    if (activeWindow === incognitoWindow) {
+      activeWindow = null;
+      win = null;
+    }
+    incognitoWindow = null;
+    incognitoViews.clear();
+  });
+
+  incognitoWindow.webContents.openDevTools({ mode: 'detach' });
+
+  if (isDev) {
+    incognitoWindow.loadFile(join(__dirname, 'dist', 'index.html'));
+  } else {
+    incognitoWindow.loadFile(join(__dirname, 'dist', 'index.html'));
+  }
+}
+
+ipcMain.handle('window:createIncognitoWindow', async () => {
+  if (incognitoWindow && !incognitoWindow.isDestroyed()) {
+    incognitoWindow.focus();
+    return;
+  }
+  
+  createIncognitoWindow();
+  if (mainWindow) {
+    mainWindow.blur();
+  }
+});
 
 if (isDev) {
   (async () => {
@@ -480,7 +721,7 @@ ipcMain.handle('window:openExternal', async (event, url) => {
 ipcMain.handle('window:bvLoadUrl', async (_e, url) => {
   if (!activeTabId) return { success: false, error: 'No active tab' };
 
-  const view = views.get(activeTabId);
+  const view = getCurrentView();
   if (!view) return { success: false, error: 'View for active tab not found' };
 
   try {
@@ -504,12 +745,16 @@ ipcMain.handle('window:bvLoadUrl', async (_e, url) => {
 });
 
 ipcMain.on('bvDestroy', (_event, tabId) => {
-  const view = views.get(tabId);
+  const view = getCurrentView();
   if (view) {
     win.removeBrowserView(view);
     view.webContents.destroy();
     view.webContents.removeAllListeners();
-    views.delete(tabId);
+    if (activeWindow === mainWindow) {
+      mainViews.delete(tabId);
+    } else if (activeWindow === incognitoWindow) {
+      incognitoViews.delete(tabId);
+    }
 
     if (activeTabId === tabId) {
       activeTabId = null;
@@ -520,53 +765,104 @@ ipcMain.on('bvDestroy', (_event, tabId) => {
 // --------- Работа с табами ---------- //
 // 1. Создание таба //
 ipcMain.handle('window:bvCreateTab', async (_e, { id, url }) => {
+  const currentWindow = BrowserWindow.getFocusedWindow();
+  if (!currentWindow || currentWindow.isDestroyed()) {
+    return { success: false, error: 'No valid active window' };
+  }
+
+  const views = currentWindow === mainWindow ? mainViews : incognitoViews;
+  
   if (views.has(id)) {
     return { success: false, error: 'Tab already exists' };
   }
-  const view = await acquireView(id);
-  views.set(id, view);
-
-  activeTabId = activeTabId ?? id;
-  setActiveView(view);
-  updateViewBounds(view);
-
+  
   try {
-    if (url && url.trim()) {
-      await view.webContents.loadURL(url);
+    const view = await acquireView(id);
+    if (!view) {
+      return { success: false, error: 'Failed to create view' };
     }
-  } catch (err) {
-    console.error('Failed to load URL in pooled view:', err);
-  }
+    
+    views.set(id, view);
+    activeTabId = activeTabId ?? id;
+    setActiveView(view);
 
-  return { success: true };
+    if (url && url.trim()) {
+      try {
+        await view.webContents.loadURL(url);
+      } catch (err) {
+        console.error('Failed to load URL in pooled view:', err);
+      }
+    }
+    return { success: true };
+  } catch (err) {
+    console.error('Failed to create tab:', err);
+    return { success: false, error: err.message };
+  }
 });
 
 // 2. Смена таба //
 ipcMain.handle('window:bvSwitchTab', (_e, id) => {
-  if (id === activeTabId || !views.has(id)) return;
-  const newV = views.get(id);
-  setActiveView(newV);
-  updateViewBounds(newV);
-  activeTabId = id;
-  win.webContents.send('tabSwitched', id);
+  if (id === activeTabId) return;
+  
+  const currentWindow = BrowserWindow.getFocusedWindow();
+  if (!currentWindow || currentWindow.isDestroyed()) {
+    console.warn('bvSwitchTab: No valid focused window');
+    return;
+  }
+  
+  const views = currentWindow === mainWindow ? mainViews : incognitoViews;
+  if (!views.has(id)) {
+    console.warn('bvSwitchTab: Tab not found');
+    return;
+  }
+  
+  try {
+    const newV = views.get(id);
+    if (!newV || !newV.webContents || newV.webContents.isDestroyed()) {
+      console.warn('bvSwitchTab: Invalid view');
+      return;
+    }
+    
+    setActiveView(newV);
+    activeTabId = id;
+    currentWindow.webContents.send('tabSwitched', id);
+  } catch (err) {
+    console.error('Failed to switch tab:', err);
+  }
 });
 
 // 3. Закрытие таба //
 ipcMain.on('window:closeTab', async (_e, id) => {
+  const currentWindow = BrowserWindow.getFocusedWindow();
+  if (!currentWindow || currentWindow.isDestroyed()) {
+    console.warn('closeTab: No valid focused window');
+    return;
+  }
+  
+  const views = currentWindow === mainWindow ? mainViews : incognitoViews;
   const view = views.get(id);
-  if (!view) return;
-  views.delete(id);
-  if (activeTabId === id) activeTabId = null;
+  if (!view) {
+    console.warn('closeTab: Tab not found');
+    return;
+  }
+  
+  try {
+    views.delete(id);
+    if (activeTabId === id) activeTabId = null;
 
-  await releaseView(view);
+    await releaseView(view);
 
-  const next = Array.from(views.keys())[0];
-  if (next) {
-    activeTabId = next;
-    const nv = views.get(next);
-    setActiveView(nv);
-    updateViewBounds(nv);
-    win.webContents.send('tabSwitched', next);
+    const next = Array.from(views.keys())[0];
+    if (next) {
+      activeTabId = next;
+      const nv = views.get(next);
+      if (nv && nv.webContents && !nv.webContents.isDestroyed()) {
+        setActiveView(nv);
+        currentWindow.webContents.send('tabSwitched', next);
+      }
+    }
+  } catch (err) {
+    console.error('Failed to close tab:', err);
   }
 });
 
@@ -609,20 +905,30 @@ ipcMain.handle('window:bvStopLoading', async () => {
 
 // --------- Работа с окном браузера --------- //
 // 1. Свернуть
-ipcMain.on('window:minimize', () => {
-  win.minimize();
+ipcMain.on('window:minimize', (event) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (window) {
+    window.minimize();
+  }
 });
 // 2. Закрыть
-ipcMain.on('window:close', () => {
-  win.close();
+ipcMain.on('window:close', (event) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (window) {
+    window.close();
+  }
 });
+
 // 3. Полноэкранный/оконный режим
-ipcMain.handle('window:toggleMaximize', () => {
-  if (win.isMaximized()) {
-    win.unmaximize();
+ipcMain.handle('window:toggleMaximize', (event) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (!window) return false;
+  
+  if (window.isMaximized()) {
+    window.unmaximize();
     return false;
   } else {
-    win.maximize();
+    window.maximize();
     return true;
   }
 });
@@ -633,21 +939,19 @@ ipcMain.on('window:setHeaderHeight', (_event, newHeaderHeight) => {
   console.log('Новая высота заголовка:', newHeaderHeight);
   headerHeight = newHeaderHeight;
 
-  const view = getCurrentView();
-  if (view && win) {
-    const { width, height: windowHeight } = win.getContentBounds();
-    view.setBounds({
-      x: 0,
-      y: Math.floor(newHeaderHeight), // Округляем для избежания проблем с пикселями
-      width,
-      height: Math.floor(windowHeight - newHeaderHeight), // Округляем для избежания проблем с пикселями
-    });
-    view.setAutoResize({
-      width: true,
-      height: true,
-      horizontal: true,
-      vertical: true,
-    });
+  const currentWindow = BrowserWindow.getFocusedWindow();
+  if (!currentWindow || currentWindow.isDestroyed()) return;
+
+  const views = currentWindow === mainWindow ? mainViews : incognitoViews;
+  for (const view of views.values()) {
+    if (!view) continue;
+    try {
+      if (view.webContents && !view.webContents.isDestroyed()) {
+        updateViewBounds(view);
+      }
+    } catch (err) {
+      console.warn('Failed to update view bounds after header height change:', err);
+    }
   }
 });
 
@@ -661,6 +965,7 @@ autoUpdater.on('checking-for-update', () =>
 autoUpdater.on('update-available', (info) =>
   console.log('Есть обновление', info),
 );
+
 autoUpdater.on('update-downloaded', async (info) => {
   console.log('Обновление скачано:', info);
 
@@ -668,8 +973,9 @@ autoUpdater.on('update-downloaded', async (info) => {
     width: 500,
     height: 400,
     modal: true,
-    parent: mainWindow,
+    parent: win,
     show: false,
+    backgroundColor: '#1e293b',
     frame: false,
     resizable: false,
     alwaysOnTop: true,
@@ -682,9 +988,20 @@ autoUpdater.on('update-downloaded', async (info) => {
 
   modal.loadFile('update-modal.html');
   modal.once('ready-to-show', () => {
-    modal.webContents.send('update-info', info);
+    modal.webContents.send('onUpdateInfo', info);
     modal.show();
+    win.focus();
   });
+});
+
+ipcMain.on('window:installUpdate', () => {
+  if (modal && !modal.isDestroyed()) modal.close();
+
+  autoUpdater.quitAndInstall((isSilent = false), (isForceRunAfter = true));
+});
+
+ipcMain.on('window:deferUpdate', () => {
+  if (modal && !modal.isDestroyed()) modal.close();
 });
 
 autoUpdater.on('error', (err) => console.error('Ошибка обновления', err));
@@ -695,9 +1012,10 @@ if (!gotLock) {
   app.quit();
 } else {
   app.on('second-instance', () => {
-    if (win) {
-      if (win.isMinimized()) win.restore();
-      win.focus();
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+      setActiveWindow(mainWindow);
     }
   });
 
@@ -728,7 +1046,7 @@ function createSuggestionsWindow() {
     transparent: true,
     alwaysOnTop: true,
     webPreferences: {
-      nodeIntegration: true,
+      nodeIntegration: false,
       contextIsolation: false,
     },
   });
@@ -767,7 +1085,7 @@ ipcMain.on('updateSuggestions', (event, suggestions) => {
 });
 
 ipcMain.on('suggestionSelected', (event, suggestion) => {
-  mainWindow.webContents.send('suggestionSelected', suggestion);
+  win.webContents.send('suggestionSelected', suggestion);
   if (suggestionsWindow) {
     suggestionsWindow.hide();
   }

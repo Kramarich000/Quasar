@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { FaArrowLeft, FaArrowRight, FaSearch } from 'react-icons/fa';
 import { FaArrowRotateRight } from 'react-icons/fa6';
 
-export default function ToolBar({ url, onChangeUrl }) {
+export default function ToolBar({ url, onChangeUrl, isIncognito }) {
   const [inputValue, setInputValue] = useState(url);
   const [suggestions, setSuggestions] = useState([]);
   const [isSuggestOpen, setIsSuggestOpen] = useState(false);
@@ -239,8 +239,8 @@ export default function ToolBar({ url, onChangeUrl }) {
                       px-3 pl-[40px] py-2 hover:bg-gray-600
                       ${
                         highlightedIndex === idx
-                          ? 'bg-red-600'
-                          : 'hover:bg-red-500'
+                          ? 'bg-gray-600'
+                          : 'hover:bg-gray-500'
                       }
                     `}
                 >
@@ -250,6 +250,11 @@ export default function ToolBar({ url, onChangeUrl }) {
             </ul>
           )}
         </div>
+        {isIncognito && (
+          <div className="bg-transparent z-9999 absolute right-[25px]">
+            Incognito Mode
+          </div>
+        )}
       </div>
     </div>
   );

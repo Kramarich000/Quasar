@@ -19,7 +19,7 @@ const allowedChannels = {
   detachTab: { type: 'invoke' },
   historyAdd: { type: 'send' },
   getHistory: { type: 'invoke' },
-  createIncognitoWindow: { type: 'send' },
+  createIncognitoWindow: { type: 'invoke' },
   isIncognito: { type: 'invoke' },
   openExternalUrl: { type: 'send' },
   setHeaderHeight: { type: 'send' },
@@ -37,6 +37,9 @@ const allowedChannels = {
   freezeTab: { type: 'send' },
   unfreezeTab: { type: 'send' },
   spoofNavigator: { type: 'send' },
+
+  installUpdate: { type: 'send' },
+  deferUpdate: { type: 'send' },
 };
 
 const allowedListenChannels = [
@@ -52,6 +55,7 @@ const allowedListenChannels = [
   'window:isMaximized',
   'navigationStateChanged',
   'loadProgress',
+  'onUpdateInfo',
 ];
 
 const safeApi = {};
@@ -80,5 +84,8 @@ safeApi.off = (channel, callback) => {
     throw new Error(`Channel ${channel} is not allowed for off()`);
   }
 };
+
+const isIncognitoFlag = process.argv.includes('--incognito');
+safeApi.isIncognitoFlag = isIncognitoFlag;
 
 contextBridge.exposeInMainWorld('api', safeApi);

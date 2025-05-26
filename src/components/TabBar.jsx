@@ -96,11 +96,12 @@ export default function TabBar({
           style={{ WebkitAppRegion: 'no-drag' }}
           onClick={() => onAddTab(false)}
           title="Открыть новую вкладку"
-          className={`!mr-auto !p-0 flex items-center justify-center !w-[20px] !h-[20px] !bg-transparent !outline-none !border-none !transition-all hover:!bg-gray-500 !rounded-full hover:rotate-180 duration-300 ${
-            tabs.length >= MAX_TABS
-              ? 'opacity-50 cursor-not-allowed'
-              : 'hover:bg-gray-500'
-          }`}
+          // className={`!mr-auto !p-0 flex items-center justify-center !w-[20px] !h-[20px] !bg-transparent !outline-none !border-none !transition-all hover:!bg-gray-500 !rounded-full hover:rotate-180 duration-300 ${
+          //   tabs.length >= MAX_TABS
+          //     ? 'opacity-50 cursor-not-allowed'
+          //     : 'hover:bg-gray-500'
+          // }`}
+          className="!mr-auto !p-0 flex items-center justify-center !w-[20px] !h-[20px] !bg-transparent !outline-none !border-none !transition-all hover:!bg-gray-500 !rounded-full hover:rotate-180 duration-300"
         >
           <IoAdd size={20} />
         </button>

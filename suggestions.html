@@ -137,7 +137,6 @@
             selectCurrent();
         });
 
-        // Handle window resize
         ipcRenderer.on('resize', (event, bounds) => {
             document.body.style.width = `${bounds.width}px`;
             document.body.style.height = `${bounds.height}px`;

@@ -7,7 +7,7 @@ import './App.css';
 import './styles/global.css';
 
 export default function App() {
-  const MAX_TABS = 12;
+  const MAX_TABS = 15;
 
   const generateId = () => {
     if (crypto && crypto.randomUUID) {
@@ -22,6 +22,7 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSecure, setIsSecure] = useState(true);
   const favicons = useFavicon(tabs);
+  const [isIncognito, setIsIncognito] = useState(false);
 
   useEffect(() => {
     const header = document.querySelector('.header-bar');
@@ -118,7 +119,11 @@ export default function App() {
     URL_STATUS.SECURE,
   ]);
 
-  const addTab = async (isIncognito = false) => {
+  useEffect(() => {
+    setIsIncognito(window.api.isIncognitoFlag);
+  }, []);
+
+  const addTab = async () => {
     if (tabs.length >= MAX_TABS) return;
 
     const id = generateId();
@@ -213,6 +218,7 @@ export default function App() {
 
         <ToolBar
           key={activeTab}
+          isIncognito={isIncognito}
           url={tabs.find((t) => t.id === activeTab)?.url || ''}
           onChangeUrl={(url) => changeUrl(activeTab, url)}
         />
