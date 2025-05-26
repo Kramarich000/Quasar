@@ -4,11 +4,9 @@ Unicode true
 !include "WinMessages.nsh"
 !include "nsDialogs.nsh"
 
-RequestExecutionLevel user
-
 Name "Quasar"
 
-InstallDir "$PROGRAMFILES\Quasar"
+InstallDir "$LOCALAPPDATA\Programs\Quasar"
 
 ; !define MUI_ICON "icon.ico"
 ; !define MUI_UNICON "icon.ico"

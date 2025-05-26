@@ -8,7 +8,7 @@ export default defineConfig(({ mode }) => ({
   build: {
     sourcemap: mode === 'development' ? 'inline' : false,
     outDir: 'dist',
-    minify: 'esbuild',
+    minify: 'terser',
     target: 'es2015',
     cssCodeSplit: true,
     emptyOutDir: true,

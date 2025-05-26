@@ -104,7 +104,7 @@ async function getSuggestions(query) {
       ...new Set([...googleSuggestions, ...duckDuckGoSuggestions]),
     ];
     console.log('Combined suggestions:', allSuggestions);
-    return allSuggestions.slice(0, 8); // Limit to 8 suggestions
+    return allSuggestions.slice(0, 8); 
   } catch (error) {
     console.error('Error getting suggestions:', error);
     return [];
@@ -160,12 +160,31 @@ function updateSuggestions(suggestions) {
 
   suggestionsContainer.style.display = 'block';
 }
-
 function updateSelectedSuggestion() {
   const items = suggestionsContainer.getElementsByClassName('suggestion-item');
   Array.from(items).forEach((item, index) => {
-    item.style.backgroundColor = index === selectedIndex ? '#f5f5f5' : '';
+    if (index === selectedIndex) {
+      item.classList.add('selected');
+    } else {
+      item.classList.remove('selected');
+    }
   });
+  scrollToSelected();
+}
+
+function scrollToSelected() {
+  const items = suggestionsContainer.getElementsByClassName('suggestion-item');
+  if (selectedIndex < 0 || selectedIndex >= items.length) return;
+
+  const item = items[selectedIndex];
+  const containerRect = suggestionsContainer.getBoundingClientRect();
+  const itemRect = item.getBoundingClientRect();
+
+  if (itemRect.top < containerRect.top) {
+    item.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } else if (itemRect.bottom > containerRect.bottom) {
+    item.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }
 }
 
 searchInput.addEventListener('keydown', function (e) {

@@ -10,20 +10,19 @@
   --gradient-end: #1f2937;
   --text-color: #e5e7eb;
 }
+
 body {
   margin: 0;
   padding: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
     Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
 
-  background: linear-gradient(
-    220deg,
-    #0b0c1c 0%,
-    #191d2b 25%,
-    #20253c 50%,
-    #1e293b 75%,
-    #0f172a 100%
-  );
+  background: linear-gradient(220deg,
+      #0b0c1c 0%,
+      #191d2b 25%,
+      #20253c 50%,
+      #1e293b 75%,
+      #0f172a 100%);
   background-attachment: fixed;
   background-size: cover;
   background-blend-mode: screen;
@@ -44,32 +43,29 @@ body::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(
-      circle at 30% 30%,
+  background: radial-gradient(circle at 30% 30%,
       rgba(0, 139, 139, 0.12),
-      transparent 40%
-    ),
-    radial-gradient(
-      circle at 70% 60%,
+      transparent 40%),
+    radial-gradient(circle at 70% 60%,
       rgba(14, 165, 233, 0.08),
-      transparent 50%
-    ),
-    radial-gradient(
-      circle at 50% 80%,
+      transparent 50%),
+    radial-gradient(circle at 50% 80%,
       rgba(255, 255, 255, 0.05),
-      transparent 50%
-    );
+      transparent 50%);
   z-index: 0;
   pointer-events: none;
   filter: blur(90px);
   opacity: 0.7;
 }
 
-.search-container,
 .quick-links,
 .search-engines {
   z-index: 1 !important;
   position: relative;
+}
+
+.search-container {
+  z-index: 2 !important;
 }
 
 #starsCanvas {
@@ -118,6 +114,7 @@ body::before {
     opacity: 0.2;
     transform: scale(0.8);
   }
+
   to {
     opacity: 1;
     transform: scale(1.2);
@@ -134,29 +131,23 @@ body::before {
 }
 
 .nebula1 {
-  background: radial-gradient(
-    circle at 30% 30%,
-    rgba(0, 139, 139, 0.12),
-    transparent 40%
-  );
+  background: radial-gradient(circle at 30% 30%,
+      rgba(0, 139, 139, 0.12),
+      transparent 40%);
   z-index: 0;
 }
 
 .nebula2 {
-  background: radial-gradient(
-    circle at 70% 60%,
-    rgba(14, 165, 233, 0.08),
-    transparent 50%
-  );
+  background: radial-gradient(circle at 70% 60%,
+      rgba(14, 165, 233, 0.08),
+      transparent 50%);
   z-index: 1;
 }
 
 .nebula3 {
-  background: radial-gradient(
-    circle at 50% 80%,
-    rgba(255, 255, 255, 0.05),
-    transparent 50%
-  );
+  background: radial-gradient(circle at 50% 80%,
+      rgba(255, 255, 255, 0.05),
+      transparent 50%);
   z-index: 2;
 }
 
@@ -203,8 +194,7 @@ h1 {
 
 .search-input {
   width: 100%;
-  padding: clamp(0.75rem, 2vw, 1rem) clamp(0.75rem, 2vw, 1rem)
-    clamp(0.75rem, 2vw, 1rem) clamp(2.5rem, 4vw, 3rem);
+  padding: clamp(0.75rem, 2vw, 1rem) clamp(0.75rem, 2vw, 1rem) clamp(0.75rem, 2vw, 1rem) clamp(2.5rem, 4vw, 3rem);
   font-size: clamp(0.9rem, 2vw, 1.1rem);
   border: 2px solid var(--border-color);
   border-radius: 9999px;
@@ -421,7 +411,13 @@ h1 {
     --text-light: #94a3b8;
     --border-color: #334155;
     --hover-color: #1e293b;
+    --primary-color: #0e7490;
+    --primary-light: rgba(14, 116, 144, 0.1);
+    --text-light: #64748b;
+    --gradient-start: #0b0c1c;
+    --gradient-end: #1f2937;
   }
+
 }
 
 @media (max-width: 480px) {
@@ -478,8 +474,7 @@ h1 {
   overflow-y: auto;
   overflow-x: hidden;
   display: none;
-
-  z-index: 1000;
+  z-index: 9999 !important;
   border: 1px solid var(--border-color);
   animation: fadeIn 0.2s ease-out;
 }
@@ -500,10 +495,15 @@ h1 {
   border-bottom: none;
 }
 
-.suggestion-item:hover {
+.suggestion-item:hover,
+.suggestion-item:focus,
+.suggestion-item:focus-within,
+.suggestion-item.selected {
   background-color: var(--hover-color) !important;
-  transform: translateX(4px);
+  transform: translateX(2px) scale(1.05);
+  outline: none !important;
 }
+
 
 .suggestion-icon {
   width: 18px;
@@ -539,13 +539,14 @@ h1 {
     opacity: 0;
     transform: translateY(-10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
   }
 }
 
-@media (prefers-color-scheme: dark) {
+/* @media (prefers-color-scheme: dark) {
   .suggestions-container {
     background: rgba(30, 30, 30, 0.95);
     border-color: rgba(255, 255, 255, 0.1);
@@ -567,4 +568,4 @@ h1 {
   .suggestion-item:hover .suggestion-icon {
     opacity: 1;
   }
-}
+} */

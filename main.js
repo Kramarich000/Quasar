@@ -32,7 +32,7 @@ const POOL_SIZE = 25;
 const viewPool = [];
 const viewInUse = new Map();
 const faviconCache = new Map();
-const MAX_FAVICON_CACHE = 50; 
+const MAX_FAVICON_CACHE = 50;
 let faviconSession;
 
 let suggestionsWindow = null;
@@ -41,7 +41,7 @@ function setActiveView(view) {
   const old = getCurrentView();
   if (old && old !== view) {
     old.webContents.setBackgroundThrottling(true);
-    old.webContents.setFrameRate(5); 
+    old.webContents.setFrameRate(5);
     win.removeBrowserView(old);
   }
   win.setBrowserView(view);
@@ -217,13 +217,13 @@ function attachViewListeners(view) {
 
 function updateNavigationState(view) {
   if (!view || !view.webContents || view.webContents.isDestroyed()) return;
-  
+
   const canGoBack = view.webContents.canGoBack();
   const canGoForward = view.webContents.canGoForward();
-  
+
   win.webContents.send('navigationStateChanged', {
     canGoBack,
-    canGoForward
+    canGoForward,
   });
 }
 
@@ -454,7 +454,8 @@ function createWindow() {
   // win.webContents.openDevTools({ mode: 'detach' });
 
   if (isDev) {
-    win.loadURL('http://localhost:5173');
+    win.loadFile(join(__dirname, 'dist', 'index.html'));
+    // win.loadURL('http://localhost:5173');
   } else {
     // win.loadURL('http://localhost:5173');
     win.loadFile(join(__dirname, 'dist', 'index.html'));
@@ -652,8 +653,6 @@ ipcMain.on('window:setHeaderHeight', (_event, newHeaderHeight) => {
 
 // ------------ //
 
-
-
 // ---- Обновление ----- //
 
 autoUpdater.on('checking-for-update', () =>
@@ -683,7 +682,7 @@ autoUpdater.on('update-downloaded', async (info) => {
 
   modal.loadFile('update-modal.html');
   modal.once('ready-to-show', () => {
-    modal.webContents.send('update-info', info); 
+    modal.webContents.send('update-info', info);
     modal.show();
   });
 });
@@ -718,56 +717,58 @@ if (!gotLock) {
 }
 
 function createSuggestionsWindow() {
-    if (suggestionsWindow) {
-        suggestionsWindow.destroy();
-    }
+  if (suggestionsWindow) {
+    suggestionsWindow.destroy();
+  }
 
-    suggestionsWindow = new BrowserWindow({
-        width: 400,
-        height: 300,
-        frame: false,
-        transparent: true,
-        alwaysOnTop: true,
-        webPreferences: {
-            nodeIntegration: true,
-            contextIsolation: false
-        }
-    });
+  suggestionsWindow = new BrowserWindow({
+    width: 400,
+    height: 300,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false,
+    },
+  });
 
-    suggestionsWindow.loadFile('suggestions.html');
-    suggestionsWindow.setVisibleOnAllWorkspaces(true);
-    suggestionsWindow.setAlwaysOnTop(true, 'floating');
-    suggestionsWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-    suggestionsWindow.setFocusable(false);
-    suggestionsWindow.setHasShadow(false);
-    suggestionsWindow.setBackgroundColor('#00000000');
+  suggestionsWindow.loadFile('suggestions.html');
+  suggestionsWindow.setVisibleOnAllWorkspaces(true);
+  suggestionsWindow.setAlwaysOnTop(true, 'floating');
+  suggestionsWindow.setVisibleOnAllWorkspaces(true, {
+    visibleOnFullScreen: true,
+  });
+  suggestionsWindow.setFocusable(false);
+  suggestionsWindow.setHasShadow(false);
+  suggestionsWindow.setBackgroundColor('#00000000');
 }
 
 ipcMain.on('showSuggestions', (event, { bounds, suggestions }) => {
-    if (!suggestionsWindow) {
-        createSuggestionsWindow();
-    }
-    
-    suggestionsWindow.setBounds(bounds);
-    suggestionsWindow.show();
-    suggestionsWindow.webContents.send('updateSuggestions', suggestions);
+  if (!suggestionsWindow) {
+    createSuggestionsWindow();
+  }
+
+  suggestionsWindow.setBounds(bounds);
+  suggestionsWindow.show();
+  suggestionsWindow.webContents.send('updateSuggestions', suggestions);
 });
 
 ipcMain.on('hideSuggestions', () => {
-    if (suggestionsWindow) {
-        suggestionsWindow.hide();
-    }
+  if (suggestionsWindow) {
+    suggestionsWindow.hide();
+  }
 });
 
 ipcMain.on('updateSuggestions', (event, suggestions) => {
-    if (suggestionsWindow) {
-        suggestionsWindow.webContents.send('updateSuggestions', suggestions);
-    }
+  if (suggestionsWindow) {
+    suggestionsWindow.webContents.send('updateSuggestions', suggestions);
+  }
 });
 
 ipcMain.on('suggestionSelected', (event, suggestion) => {
-    mainWindow.webContents.send('suggestionSelected', suggestion);
-    if (suggestionsWindow) {
-        suggestionsWindow.hide();
-    }
+  mainWindow.webContents.send('suggestionSelected', suggestion);
+  if (suggestionsWindow) {
+    suggestionsWindow.hide();
+  }
 });

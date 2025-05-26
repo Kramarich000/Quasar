@@ -90,6 +90,7 @@
         "ko"
       ]
     },
+    "afterPack": "prune-locales.js",
     "mac": {
       "icon": "public/icons/icons/mac/icon.icns",
       "target": [
@@ -108,15 +109,25 @@
       "icon": "public/icons/icons/png/256x256.png"
     },
     "files": [
+      "dist/**/*",
       "main.js",
       "preload.js",
-      "src/build/*",
       "createBrowserView.js",
-      "!**/*.test.js",
-      "!node_modules",
       "!**/*.map",
-      "!**/*.DS_Store",
-      "!**/*.gitignore"
+      "!node_modules/.cache/**"
+    ],
+    "directories": {
+      "buildResources": "dist"
+    },
+    "extraResources": [
+      {
+        "from": "node_modules/electron/dist/locales/",
+        "to": "locales",
+        "filter": [
+          "en.pak",
+          "ru.pak"
+        ]
+      }
     ],
     "asar": true
   },
