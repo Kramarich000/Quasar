@@ -9,7 +9,7 @@ laterBtn.addEventListener('click', () => {
   window.api.deferUpdate();
 });
 
-window.api.onUpdateInfo((info) => {
+window.api.on('onUpdateInfo', (info) => {
   const versionEl = document.getElementById('update-version');
   const dateEl = document.getElementById('update-date');
   const notesEl = document.getElementById('update-notes');
@@ -18,13 +18,13 @@ window.api.onUpdateInfo((info) => {
   dateEl.textContent = new Date(info.releaseDate).toLocaleDateString();
 
   if (Array.isArray(info.releaseNotes)) {
-    const ul = document.createElement('ul');
+    const ol = document.createElement('ol');
     for (const note of info.releaseNotes) {
       const li = document.createElement('li');
       li.textContent = note.note || note;
-      ul.appendChild(li);
+      ol.appendChild(li);
     }
-    notesEl.appendChild(ul);
+    notesEl.appendChild(ol);
   } else if (typeof info.releaseNotes === 'string') {
     const pre = document.createElement('pre');
     pre.textContent = info.releaseNotes;

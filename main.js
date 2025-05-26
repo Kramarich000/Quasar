@@ -984,13 +984,19 @@ autoUpdater.on('update-downloaded', async (info) => {
 
   modal = new BrowserWindow({
     width: 500,
+    title: 'Обновление',
     height: 400,
     modal: true,
+    resizable: false,
     parent: win,
     show: false,
     backgroundColor: '#1e293b',
     frame: false,
     resizable: false,
+    center: true,
+    skipTaskbar: true,
+    minimizable: false,
+    maximizable: false,
     alwaysOnTop: true,
     webPreferences: {
       contextIsolation: true,
@@ -1011,7 +1017,7 @@ autoUpdater.on('update-downloaded', async (info) => {
 ipcMain.on('window:installUpdate', () => {
   if (modal && !modal.isDestroyed()) modal.close();
 
-  autoUpdater.quitAndInstall((isSilent = false), (isForceRunAfter = true));
+  autoUpdater.quitAndInstall();
 });
 
 ipcMain.on('window:deferUpdate', () => {
@@ -1019,6 +1025,41 @@ ipcMain.on('window:deferUpdate', () => {
 });
 
 autoUpdater.on('error', (err) => console.error('Ошибка обновления', err));
+
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
+function openFakeUpdateModal() {
+  const modal = new BrowserWindow({
+    width: 480,
+    height: 580,
+    show: false,
+    modal: true,
+    parent: BrowserWindow.getFocusedWindow(),
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+    },
+  });
+
+  modal.loadFile(path.join(__dirname, 'dist', 'update-modal.html'));
+
+  modal.webContents.once('did-finish-load', () => {
+    const fakeUpdateInfo = {
+      version: '2.1.3',
+      releaseDate: new Date().toISOString(),
+      releaseNotes: [
+        'Добавлена поддержка drag-and-drop.',
+        'Исправлены баги с отображением темной темы.',
+        'Обновлены зависимости.',
+      ],
+    };
+
+    modal.webContents.send('onUpdateInfo', fakeUpdateInfo);
+    modal.show();
+  });
+
+  modal.webContents.openDevTools(); // для отладки, потом убери
+}
+
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
 
 const gotLock = app.requestSingleInstanceLock();
 
@@ -1037,6 +1078,7 @@ if (!gotLock) {
     autoUpdater.checkForUpdatesAndNotify();
     // setTimeout(() => autoUpdater.checkForUpdatesAndNotify(), 2000);
     createWindow();
+    openFakeUpdateModal();
     faviconSession = session.defaultSession;
     // setTimeout(() => initViewPool(), 1000);
     initViewPool();
