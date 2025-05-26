@@ -440,7 +440,7 @@ function createWindow() {
       partition: 'persist:browser',
       preload: join(__dirname, 'preload.js'),
       contextIsolation: true,
-      devTools: true,
+      devTools: false,
       nodeIntegration: false,
       webviewTag: false,
       sandbox: true,
@@ -534,7 +534,7 @@ function createWindow() {
     }
   });
 
-  mainWindow.webContents.openDevTools({ mode: 'detach' });
+  // mainWindow.webContents.openDevTools({ mode: 'detach' });
 
   if (isDev) {
     mainWindow.loadFile(join(__dirname, 'dist', 'index.html'));
@@ -562,7 +562,7 @@ function createIncognitoWindow() {
       partition: 'temp:incognito-' + Date.now(),
       preload: join(__dirname, 'preload.js'),
       contextIsolation: true,
-      devTools: true,
+      devTools: false,
       nodeIntegration: false,
       webviewTag: false,
       sandbox: true,
@@ -682,7 +682,7 @@ function createIncognitoWindow() {
     incognitoViews.clear();
   });
 
-  incognitoWindow.webContents.openDevTools({ mode: 'detach' });
+  // incognitoWindow.webContents.openDevTools({ mode: 'detach' });
 
   if (isDev) {
     incognitoWindow.loadFile(join(__dirname, 'dist', 'index.html'));
