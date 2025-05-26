@@ -997,7 +997,8 @@ autoUpdater.on('update-downloaded', async (info) => {
     },
   });
 
-  modal.loadFile('update-modal.html');
+  modal.loadFile(join(__dirname, 'dist', 'update-modal.html'));
+
   modal.once('ready-to-show', () => {
     modal.webContents.send('onUpdateInfo', info);
     modal.show();
@@ -1062,7 +1063,7 @@ function createSuggestionsWindow() {
     },
   });
 
-  suggestionsWindow.loadFile('suggestions.html');
+  suggestionsWindow.loadFile(join(__dirname, 'dist', 'suggestions.html'));
   suggestionsWindow.setVisibleOnAllWorkspaces(true);
   suggestionsWindow.setAlwaysOnTop(true, 'floating');
   suggestionsWindow.setVisibleOnAllWorkspaces(true, {
