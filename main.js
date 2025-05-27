@@ -164,26 +164,61 @@ function attachViewListeners(view) {
     return;
   }
 
-  view.webContents.on('did-start-loading', () => {
-    win.webContents.send('bvDidStartLoading', { tabId: view._tabId });
-    win.webContents.send('loadProgress', { progress: 0 });
-  });
+  if (view?.webContents) {
+    view.webContents.on('did-start-loading', () => {
+      if (
+        win?.webContents &&
+        !win.webContents.isDestroyed() &&
+        view?._tabId != null
+      ) {
+        win.webContents.send('bvDidStartLoading', { tabId: view._tabId });
+        win.webContents.send('loadProgress', { progress: 0 });
+      }
+    });
 
-  view.webContents.on('did-progress', (_e, progress) => {
-    win.webContents.send('loadProgress', { progress });
-  });
+    view.webContents.on('did-progress', (_e, progress) => {
+      if (
+        win?.webContents &&
+        !win.webContents.isDestroyed() &&
+        typeof progress === 'number'
+      ) {
+        win.webContents.send('loadProgress', { progress });
+      }
+    });
 
-  view.webContents.on('did-stop-loading', () => {
-    win.webContents.send('bvDidStopLoading', { tabId: view._tabId });
-    win.webContents.send('loadProgress', { progress: 1 });
-  });
+    view.webContents.on('did-stop-loading', () => {
+      if (
+        win?.webContents &&
+        !win.webContents.isDestroyed() &&
+        view?._tabId != null
+      ) {
+        win.webContents.send('bvDidStopLoading', { tabId: view._tabId });
+        win.webContents.send('loadProgress', { progress: 1 });
+      }
+    });
 
-  view.webContents.on('ready-to-show', () =>
-    win.webContents.send('bvDomReady', view._tabId),
-  );
-  view.webContents.on('page-title-updated', (_e, title) =>
-    win.webContents.send('tabTitleUpdated', { id: view._tabId, title }),
-  );
+    view.webContents.on('ready-to-show', () => {
+      if (
+        win?.webContents &&
+        !win.webContents.isDestroyed() &&
+        view?._tabId != null
+      ) {
+        win.webContents.send('bvDomReady', view._tabId);
+      }
+    });
+
+    view.webContents.on('page-title-updated', (_e, title) => {
+      if (
+        win?.webContents &&
+        !win.webContents.isDestroyed() &&
+        view?._tabId != null &&
+        typeof title === 'string'
+      ) {
+        win.webContents.send('tabTitleUpdated', { id: view._tabId, title });
+      }
+    });
+  }
+
   view.webContents.on('page-favicon-updated', async (_e, favicons) => {
     if (!favicons?.length) {
       return win.webContents.send('tabFaviconUpdated', {
