@@ -13,7 +13,7 @@ window.api.on('onUpdateInfo', (info) => {
   const versionEl = document.getElementById('update-version');
   const dateEl = document.getElementById('update-date');
   const notesEl = document.getElementById('update-notes');
-
+  notesEl.replaceChildren();
   versionEl.textContent = `Новая версия: ${info.version}`;
   dateEl.textContent = new Date(info.releaseDate).toLocaleDateString();
 
@@ -21,13 +21,30 @@ window.api.on('onUpdateInfo', (info) => {
     const ol = document.createElement('ol');
     for (const note of info.releaseNotes) {
       const li = document.createElement('li');
-      li.textContent = note.note || note;
+      const fragment = parseReleaseNoteText(note.note || note);
+      li.appendChild(fragment);
       ol.appendChild(li);
     }
     notesEl.appendChild(ol);
   } else if (typeof info.releaseNotes === 'string') {
-    const pre = document.createElement('pre');
-    pre.textContent = info.releaseNotes;
-    notesEl.appendChild(pre);
+    const fragment = parseReleaseNoteText(info.releaseNotes);
+    notesEl.appendChild(fragment);
   }
 });
+
+function parseReleaseNoteText(text) {
+  const container = document.createDocumentFragment();
+  const lines = text.split(/<br\s*\/?>|<\/?p>|[\r\n]+/gi);
+
+  lines.forEach((line, index) => {
+    line = line.replace(/<\/?p>/gi, '').trim();
+
+    if (!line) return;
+
+    const p = document.createElement('p');
+    p.textContent = line;
+    container.appendChild(p);
+  });
+
+  return container;
+}

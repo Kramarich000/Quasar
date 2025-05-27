@@ -36,10 +36,10 @@ export function initAudio(src) {
       gainNode.gain.setValueAtTime(0, now);
       gainNode.gain.linearRampToValueAtTime(0.4, now + 3.0);
 
-      console.log('🎵 WebAudio: музыка запущена и плавно набирает громкость');
+      console.log('WebAudio: музыка запущена');
     } catch (err) {
       console.error(
-        '⚠️ WebAudio: не удалось загрузить или запустить музыку',
+        'WebAudio: не удалось загрузить или запустить музыку',
         err,
       );
     }
