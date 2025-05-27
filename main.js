@@ -1020,7 +1020,7 @@ autoUpdater.on('update-downloaded', async (info) => {
 ipcMain.on('window:installUpdate', () => {
   if (modal && !modal.isDestroyed()) modal.close();
 
-  autoUpdater.quitAndInstall();
+  autoUpdater.quitAndInstall(true, true);
 });
 
 ipcMain.on('window:deferUpdate', () => {
