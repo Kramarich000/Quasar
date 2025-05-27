@@ -1,5 +1,9 @@
 import { BrowserView, Menu, screen } from 'electron';
 import { fileURLToPath } from 'url';
+import { join, dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const generateId = () => {
   return `${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
@@ -35,6 +39,7 @@ export default function createBrowserView(options = {}, win) {
     plugins: false,
     experimentalFeatures: false,
     cache: true,
+    preload: join(__dirname, 'browserViewPreload.js'),
     // javascript: true,
     images: true,
     textAreasAreResizable: false,

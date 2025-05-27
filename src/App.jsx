@@ -160,6 +160,15 @@ export default function App() {
 
       if (id === activeTab) {
         await window.api.bvLoadUrl(newUrl);
+        
+        // Сохраняем в историю
+        const tab = tabs.find(t => t.id === id);
+        if (tab && newUrl && !newUrl.startsWith('about:') && !newUrl.startsWith('file:')) {
+          window.api.historyAdd({
+            url: newUrl,
+            title: tab.title || newUrl
+          });
+        }
       }
     } catch (error) {
       console.error('Error changing URL:', error);

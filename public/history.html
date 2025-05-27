@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>История браузера</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            background-color: #1a1a1a;
+            color: #ffffff;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .search-container {
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 12px 20px 12px 40px;
+            border: none;
+            border-radius: 8px;
+            background-color: #2d2d2d;
+            color: #ffffff;
+            font-size: 16px;
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #666;
+        }
+
+        .history-list {
+            display: grid;
+            gap: 10px;
+        }
+
+        .history-item {
+            background-color: #2d2d2d;
+            border-radius: 8px;
+            padding: 15px;
+            transition: transform 0.2s;
+        }
+
+        .history-item:hover {
+            transform: translateX(5px);
+        }
+
+        .history-title {
+            color: #ffffff;
+            margin: 0 0 5px 0;
+            font-size: 16px;
+        }
+
+        .history-url {
+            color: #888;
+            margin: 0 0 5px 0;
+            font-size: 14px;
+        }
+
+        .history-date {
+            color: #666;
+            font-size: 12px;
+        }
+
+        .clear-button {
+            background-color: #dc2626;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .clear-button:hover {
+            background-color: #b91c1c;
+        }
+
+        .delete-button {
+            background: none;
+            border: none;
+            color: #666;
+            cursor: pointer;
+            padding: 5px;
+            transition: color 0.2s;
+        }
+
+        .delete-button:hover {
+            color: #dc2626;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>История браузера</h1>
+            <button class="clear-button" id="clearHistory">Очистить историю</button>
+        </div>
+
+        <div class="search-container">
+            <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" class="search-input" id="searchInput" placeholder="Поиск в истории...">
+        </div>
+
+        <div class="history-list" id="historyList">
+            <!-- История будет добавлена здесь динамически -->
+        </div>
+    </div>
+
+    <script>
+        let historyData = [];
+
+        async function loadHistory() {
+            console.log('History page: Starting to load history...');
+            try {
+                console.log('History page: Calling window.api.getHistory()...');
+                historyData = await window.api.getHistory();
+                console.log('History page: History data received:', historyData);
+                renderHistory(historyData);
+            } catch (error) {
+                console.error('History page: Error loading history:', error);
+            }
+        }
+
+        function formatDate(timestamp) {
+            const date = new Date(timestamp);
+            const months = [
+                'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+                'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'
+            ];
+            
+            const day = date.getDate();
+            const month = months[date.getMonth()];
+            const year = date.getFullYear();
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            
+            return `${day} ${month} ${year}, ${hours}:${minutes}`;
+        }
+
+        function renderHistory(data) {
+            const historyList = document.getElementById('historyList');
+            historyList.innerHTML = '';
+
+            if (data.length === 0) {
+                historyList.innerHTML = `
+                    <div class="empty-state">
+                        <h2>История пуста</h2>
+                        <p>Посещенные страницы появятся здесь</p>
+                    </div>
+                `;
+                return;
+            }
+
+            data.forEach(entry => {
+                const item = document.createElement('div');
+                item.className = 'history-item';
+                item.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: start;">
+                        <div style="flex: 1;">
+                            <h3 class="history-title">${entry.title}</h3>
+                            <p class="history-url">${entry.url}</p>
+                            <p class="history-date">${formatDate(entry.timestamp)}</p>
+                        </div>
+                        <button class="delete-button" data-id="${entry.id}">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M3 6h18"></path>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            </svg>
+                        </button>
+                    </div>
+                `;
+
+                // Добавляем обработчик клика по ссылке
+                const title = item.querySelector('.history-title');
+                title.style.cursor = 'pointer';
+                title.addEventListener('click', () => {
+                    window.api.openExternalUrl(entry.url);
+                });
+
+                // Добавляем обработчик удаления
+                const deleteButton = item.querySelector('.delete-button');
+                deleteButton.addEventListener('click', () => {
+                    window.api.removeHistoryEntry(entry.id);
+                    loadHistory();
+                });
+
+                historyList.appendChild(item);
+            });
+        }
+
+        // Обработчики событий
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase();
+            const filtered = historyData.filter(entry => 
+                entry.url.toLowerCase().includes(query) ||
+                entry.title.toLowerCase().includes(query)
+            );
+            renderHistory(filtered);
+        });
+
+        document.getElementById('clearHistory').addEventListener('click', () => {
+            if (confirm('Вы уверены, что хотите очистить всю историю?')) {
+                window.api.clearHistory();
+                loadHistory();
+            }
+        });
+
+        // Загружаем историю при загрузке страницы
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('History page: DOM loaded, calling loadHistory()...');
+            loadHistory();
+        });
+    </script>
+</body>
+</html> 

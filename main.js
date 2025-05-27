@@ -11,6 +11,7 @@ import path from 'path';
 const { autoUpdater } = pkg;
 import contextMenu from 'electron-context-menu';
 import createBrowserView from './createBrowserView.js';
+import { historyManager } from './src/utils/historyManager.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
@@ -773,6 +774,28 @@ ipcMain.handle('window:bvLoadUrl', async (_e, url) => {
     if (url.startsWith('file://')) {
       const filePath = url.replace('file://', '');
       const normalized = path.normalize(filePath);
+      
+      // Разрешаем загрузку history.html
+      if (filePath === 'history.html') {
+        const historyPath = join(__dirname, 'dist', 'history.html');
+        console.log('Loading history.html from:', historyPath);
+
+        if (!existsSync(historyPath)) {
+          console.error('history.html not found at:', historyPath);
+          return { success: false, error: 'history.html not found' };
+        }
+
+        try {
+          await view.webContents.loadFile(historyPath);
+          console.log('history.html loaded successfully');
+          return { success: true };
+        } catch (error) {
+          console.error('Failed to load history.html:', error);
+          return { success: false, error: error.message };
+        }
+      }
+      
+      // Для остальных файлов проверяем доступ к dist
       if (!normalized.startsWith(path.resolve(__dirname, 'dist'))) {
         return { success: false, error: 'Access denied' };
       }
@@ -918,7 +941,16 @@ ipcMain.on('window:closeTab', async (_e, id) => {
 ipcMain.handle('window:bvGoBack', async () => {
   const view = getCurrentView();
   if (view && view.webContents.canGoBack()) {
+    console.log('Navigating back...');
     view.webContents.goBack();
+    // Сохраняем в историю после навигации
+    const url = view.webContents.getURL();
+    const title = view.webContents.getTitle();
+    console.log('Navigation complete:', { url, title });
+    if (url && !url.startsWith('about:') && !url.startsWith('file:')) {
+      console.log('Adding to history after back navigation');
+      historyManager.addEntry(url, title);
+    }
   }
 });
 
@@ -926,7 +958,16 @@ ipcMain.handle('window:bvGoBack', async () => {
 ipcMain.handle('window:bvGoForward', async () => {
   const view = getCurrentView();
   if (view && view.webContents.canGoForward()) {
+    console.log('Navigating forward...');
     view.webContents.goForward();
+    // Сохраняем в историю после навигации
+    const url = view.webContents.getURL();
+    const title = view.webContents.getTitle();
+    console.log('Navigation complete:', { url, title });
+    if (url && !url.startsWith('about:') && !url.startsWith('file:')) {
+      console.log('Adding to history after forward navigation');
+      historyManager.addEntry(url, title);
+    }
   }
 });
 
@@ -1193,5 +1234,74 @@ ipcMain.on('suggestionSelected', (event, suggestion) => {
   win.webContents.send('suggestionSelected', suggestion);
   if (suggestionsWindow) {
     suggestionsWindow.hide();
+  }
+});
+
+// Обработчики истории
+ipcMain.on('window:historyAdd', (_event, { url, title }) => {
+  console.log('History add event received:', { url, title });
+  if (!url || url.startsWith('about:') || url.startsWith('file:')) {
+    console.log('Skipping history entry - invalid URL');
+    return;
+  }
+  historyManager.addEntry(url, title);
+});
+
+ipcMain.handle('window:getHistory', () => {
+  console.log('Get history request received');
+  const history = historyManager.getHistory();
+  console.log('Returning history:', history.length, 'items');
+  return history;
+});
+
+ipcMain.on('window:clearHistory', () => {
+  console.log('Clear history request received');
+  historyManager.clearHistory();
+});
+
+ipcMain.on('window:removeHistoryEntry', (_event, id) => {
+  console.log('Remove history entry request received:', id);
+  historyManager.removeEntry(id);
+});
+
+// Обработчик изменения URL
+ipcMain.on('window:changeUrl', async (event, url) => {
+  console.log('URL change requested:', url);
+  const view = getCurrentView();
+  if (view) {
+    try {
+      await view.webContents.loadURL(url);
+      console.log('URL loaded successfully:', url);
+      // Сохраняем в историю после загрузки
+      const title = view.webContents.getTitle();
+      console.log('Page title:', title);
+      if (url && !url.startsWith('about:') && !url.startsWith('file:')) {
+        console.log('Adding to history after URL change');
+        historyManager.addEntry(url, title);
+      }
+    } catch (error) {
+      console.error('Error loading URL:', error);
+    }
+  }
+});
+
+// Обработчик клика по ссылке
+ipcMain.on('window:linkClicked', async (event, url) => {
+  console.log('Link clicked:', url);
+  const view = getCurrentView();
+  if (view) {
+    try {
+      await view.webContents.loadURL(url);
+      console.log('Link URL loaded successfully:', url);
+      // Сохраняем в историю после загрузки
+      const title = view.webContents.getTitle();
+      console.log('Page title:', title);
+      if (url && !url.startsWith('about:') && !url.startsWith('file:')) {
+        console.log('Adding to history after link click');
+        historyManager.addEntry(url, title);
+      }
+    } catch (error) {
+      console.error('Error loading link URL:', error);
+    }
   }
 });

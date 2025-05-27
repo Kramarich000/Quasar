@@ -19,6 +19,8 @@ const allowedChannels = {
   detachTab: { type: 'invoke' },
   historyAdd: { type: 'send' },
   getHistory: { type: 'invoke' },
+  clearHistory: { type: 'send' },
+  removeHistoryEntry: { type: 'send' },
   createIncognitoWindow: { type: 'invoke' },
   isIncognito: { type: 'invoke' },
   openExternalUrl: { type: 'send' },

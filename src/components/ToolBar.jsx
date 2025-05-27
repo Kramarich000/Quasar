@@ -3,7 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { FaArrowLeft, FaArrowRight, FaSearch } from 'react-icons/fa';
 import { FaArrowRotateRight, FaVolumeXmark } from 'react-icons/fa6';
 import { FaVolumeUp } from 'react-icons/fa';
+import { IoTime } from 'react-icons/io5';
 import { setVolume } from '../utils/audioManager';
+import HistoryPanel from './HistoryPanel';
 
 export default function ToolBar({ url, onChangeUrl, isIncognito }) {
   const [inputValue, setInputValue] = useState(url);
@@ -16,6 +18,7 @@ export default function ToolBar({ url, onChangeUrl, isIncognito }) {
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const containerRef = useRef(null);
   const itemRefs = useRef([]);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
   useEffect(() => {
     const handleNavigationStateChanged = ({
@@ -176,6 +179,10 @@ export default function ToolBar({ url, onChangeUrl, isIncognito }) {
     setVolume(isMuted ? 0.4 : 0);
   };
 
+  const openHistory = () => {
+    window.api.bvLoadUrl('file://history.html');
+  };
+
   return (
     <div className="!relative !bg-gray-800">
       <div className="flex items-center text-white px-2 h-12 space-x-2">
@@ -220,32 +227,18 @@ export default function ToolBar({ url, onChangeUrl, isIncognito }) {
           transition={{ duration: 0.2 }}
         >
           <AnimatePresence mode="wait">
-            <motion.div
-              key={isMuted ? "mute" : "unmute"}
-              initial={{ scale: 0.5, opacity: 0, rotate: -180 }}
-              animate={{ scale: 1, opacity: 1, rotate: 0 }}
-              exit={{ scale: 0.5, opacity: 0, rotate: 180 }}
-              transition={{ duration: 0.2 }}
-            >
-              {isMuted ? (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.1 }}
-                >
-                  <FaVolumeXmark className="text-white" />
-                </motion.div>
-              ) : (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.1 }}
-                >
-                  <FaVolumeUp className="text-white" />
-                </motion.div>
-              )}
-            </motion.div>
+            {isMuted ? <FaVolumeXmark /> : <FaVolumeUp />}
           </AnimatePresence>
+        </motion.button>
+
+        <motion.button
+          onClick={openHistory}
+          title="История"
+          className="!p-2 !rounded !bg-transparent hover:!bg-gray-700 !outline-none !border-none relative"
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          <IoTime size={20} />
         </motion.button>
 
         <div className="flex relative w-[100%] flex-col">
@@ -304,6 +297,11 @@ export default function ToolBar({ url, onChangeUrl, isIncognito }) {
           </div>
         )}
       </div>
+
+      <HistoryPanel 
+        isOpen={isHistoryOpen} 
+        onClose={() => setIsHistoryOpen(false)} 
+      />
     </div>
   );
 }
