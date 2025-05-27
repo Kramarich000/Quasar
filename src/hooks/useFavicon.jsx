@@ -21,23 +21,18 @@ export function useFavicon(tabs) {
 
   useEffect(() => {
     const handler = ({ id, favicon }) => {
-      console.log('Favicon hook received update:', { id, favicon });
-      
-      if (!favicon) {
-        console.log('No favicon provided, using default');
-        return;
-      }
+      if (!id) return;
       
       setFavicons((prev) => {
         if (prev[id] === favicon) {
-          console.log('Favicon unchanged for tab:', id);
           return prev;
         }
         
-        console.log('Updating favicon for tab:', id, 'from:', prev[id], 'to:', favicon);
+        const newFavicon = favicon || defaultFavicon;
+        
         return {
           ...prev,
-          [id]: favicon,
+          [id]: newFavicon,
         };
       });
     };

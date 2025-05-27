@@ -5,7 +5,6 @@ import { FaArrowRotateRight, FaVolumeXmark } from 'react-icons/fa6';
 import { FaVolumeUp } from 'react-icons/fa';
 import { IoTime } from 'react-icons/io5';
 import { setVolume } from '../utils/audioManager';
-import HistoryPanel from './HistoryPanel';
 
 export default function ToolBar({ url, onChangeUrl, isIncognito }) {
   const [inputValue, setInputValue] = useState(url);
@@ -218,28 +217,21 @@ export default function ToolBar({ url, onChangeUrl, isIncognito }) {
 
         <motion.button
           onClick={toggleMute}
-          title={isMuted ? "Включить звук" : "Выключить звук"}
+          title={isMuted ? 'Включить звук' : 'Выключить звук'}
           className="!p-2 !rounded !bg-transparent hover:!bg-gray-700 !outline-none !border-none relative"
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.95 }}
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.2 }}
         >
-          <AnimatePresence mode="wait">
-            {isMuted ? <FaVolumeXmark /> : <FaVolumeUp />}
-          </AnimatePresence>
+          {isMuted ? <FaVolumeXmark /> : <FaVolumeUp />}
         </motion.button>
 
-        <motion.button
-          onClick={openHistory}
-          title="История"
-          className="!p-2 !rounded !bg-transparent hover:!bg-gray-700 !outline-none !border-none relative"
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          <IoTime size={20} />
-        </motion.button>
+        {!isIncognito && (
+          <motion.button
+            onClick={openHistory}
+            title="История"
+            className="!p-2 !rounded !bg-transparent hover:!bg-gray-700 !outline-none !border-none relative"
+          >
+            <IoTime size={20} />
+          </motion.button>
+        )}
 
         <div className="flex relative w-[100%] flex-col">
           <input
@@ -298,10 +290,6 @@ export default function ToolBar({ url, onChangeUrl, isIncognito }) {
         )}
       </div>
 
-      <HistoryPanel 
-        isOpen={isHistoryOpen} 
-        onClose={() => setIsHistoryOpen(false)} 
-      />
     </div>
   );
 }

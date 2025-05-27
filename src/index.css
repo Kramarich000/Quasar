@@ -98,7 +98,7 @@ button:focus-visible {
 
 .tabBar-scrollbar,
 scrollbar {
-  scrollbar-color: #4a5568 transparent;
+  scrollbar-color: #1e2939 transparent;
 }
 
 .tabBar-scrollbar::-webkit-scrollbar,

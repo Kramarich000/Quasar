@@ -120,7 +120,11 @@ export default function App() {
   ]);
 
   useEffect(() => {
-    setIsIncognito(window.api.isIncognitoFlag);
+    const checkIncognito = async () => {
+      const isIncognito = await window.api.isIncognito();
+      setIsIncognito(isIncognito);
+    };
+    checkIncognito();
   }, []);
 
   const addTab = async () => {
@@ -161,13 +165,16 @@ export default function App() {
       if (id === activeTab) {
         await window.api.bvLoadUrl(newUrl);
         
-        // Сохраняем в историю
+        // Сохраняем в историю только если не инкогнито режим
         const tab = tabs.find(t => t.id === id);
         if (tab && newUrl && !newUrl.startsWith('about:') && !newUrl.startsWith('file:')) {
-          window.api.historyAdd({
-            url: newUrl,
-            title: tab.title || newUrl
-          });
+          const isIncognito = await window.api.isIncognito();
+          if (!isIncognito) {
+            window.api.historyAdd({
+              url: newUrl,
+              title: tab.title || newUrl
+            });
+          }
         }
       }
     } catch (error) {

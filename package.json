@@ -117,7 +117,8 @@
       "createBrowserView.js",
       "!**/*.map",
       "!node_modules/.cache/**",
-      "public/history.html"
+      "./src/utils/*",
+      "browserViewPreload.js"
     ],
     "directories": {
       "buildResources": "dist"

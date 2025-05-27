@@ -66,23 +66,22 @@ export function TabContainer({
       return;
     }
 
+    setIsFaviconLoading(true);
     const img = new Image();
-
+    
     img.onload = () => {
-      loadingTimeoutRef.current = setTimeout(() => {
-        if (imgRef.current && imgRef.current.src === faviconUrl) {
-          setIsFaviconLoading(false);
-        }
-      }, 100);
+      setIsFaviconLoading(false);
     };
 
     img.onerror = () => {
-      if (imgRef.current && imgRef.current.src === faviconUrl) {
-        setIsFaviconLoading(false);
-      }
+      setIsFaviconLoading(false);
     };
 
     img.src = faviconUrl;
+
+    loadingTimeoutRef.current = setTimeout(() => {
+      setIsFaviconLoading(false);
+    }, 1000);
 
     return () => {
       if (loadingTimeoutRef.current) {
@@ -92,26 +91,17 @@ export function TabContainer({
   }, [faviconUrl, defaultFavicon]);
 
   const handleFaviconLoad = useCallback(() => {
-    console.log('Favicon loaded in img element:', {
-      tabId: tab.id,
-      faviconUrl,
-    });
     setIsFaviconLoading(false);
-  }, [tab.id, faviconUrl]);
+  }, []);
 
   const handleFaviconError = useCallback(
     (e) => {
-      console.log('Favicon error in img element:', {
-        tabId: tab.id,
-        faviconUrl,
-      });
+      setIsFaviconLoading(false);
       if (e.target.src !== defaultFavicon) {
         e.target.src = defaultFavicon;
-      } else {
-        setIsFaviconLoading(false);
       }
     },
-    [tab.id, faviconUrl, defaultFavicon],
+    [defaultFavicon],
   );
 
   console.log('Rendering tab:', {
@@ -310,6 +300,7 @@ export function TabContainer({
           onError={handleFaviconError}
           src={faviconUrl}
           alt=""
+          crossOrigin="anonymous"
         />
       )}
 
