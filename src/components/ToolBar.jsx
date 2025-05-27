@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FaArrowLeft, FaArrowRight, FaSearch } from 'react-icons/fa';
-import { FaArrowRotateRight } from 'react-icons/fa6';
+import { FaArrowRotateRight, FaVolumeXmark } from 'react-icons/fa6';
+import { FaVolumeUp } from 'react-icons/fa';
+import { setVolume } from '../utils/audioManager';
 
 export default function ToolBar({ url, onChangeUrl, isIncognito }) {
   const [inputValue, setInputValue] = useState(url);
@@ -9,6 +11,7 @@ export default function ToolBar({ url, onChangeUrl, isIncognito }) {
   const [isSuggestOpen, setIsSuggestOpen] = useState(false);
   const [canGoBack, setCanGoBack] = useState(false);
   const [canGoForward, setCanGoForward] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
   const debounceRef = useRef(null);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const containerRef = useRef(null);
@@ -168,6 +171,11 @@ export default function ToolBar({ url, onChangeUrl, isIncognito }) {
     setHighlightedIndex(-1);
   }, [suggestions]);
 
+  const toggleMute = () => {
+    setIsMuted(!isMuted);
+    setVolume(isMuted ? 0.4 : 0);
+  };
+
   return (
     <div className="!relative !bg-gray-800">
       <div className="flex items-center text-white px-2 h-12 space-x-2">
@@ -200,6 +208,46 @@ export default function ToolBar({ url, onChangeUrl, isIncognito }) {
         >
           <FaArrowRotateRight />
         </button>
+
+        <motion.button
+          onClick={toggleMute}
+          title={isMuted ? "Включить звук" : "Выключить звук"}
+          className="!p-2 !rounded !bg-transparent hover:!bg-gray-700 !outline-none !border-none relative"
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.95 }}
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.2 }}
+        >
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={isMuted ? "mute" : "unmute"}
+              initial={{ scale: 0.5, opacity: 0, rotate: -180 }}
+              animate={{ scale: 1, opacity: 1, rotate: 0 }}
+              exit={{ scale: 0.5, opacity: 0, rotate: 180 }}
+              transition={{ duration: 0.2 }}
+            >
+              {isMuted ? (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.1 }}
+                >
+                  <FaVolumeXmark className="text-white" />
+                </motion.div>
+              ) : (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.1 }}
+                >
+                  <FaVolumeUp className="text-white" />
+                </motion.div>
+              )}
+            </motion.div>
+          </AnimatePresence>
+        </motion.button>
+
         <div className="flex relative w-[100%] flex-col">
           <input
             type="text"
